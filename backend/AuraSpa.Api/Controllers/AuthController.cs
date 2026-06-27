@@ -77,10 +77,19 @@ namespace AuraSpa.Api.Controllers
             var tipoCed = await _ctx.TiposDocumento.FirstOrDefaultAsync(t => t.Codigo == "CED");
             if (tipoCed == null) return BadRequest("Base de datos no inicializada.");
 
+            var numeroDoc = dto.NumeroDocumento ?? $"SN-{Guid.NewGuid().ToString("N").Substring(0, 12).ToUpper()}";
+
+            if (!string.IsNullOrEmpty(dto.NumeroDocumento))
+            {
+                bool cedulaExiste = await _ctx.Clientes.AnyAsync(c => c.NumeroDocumento == numeroDoc);
+                if (cedulaExiste)
+                    return BadRequest("Esta cédula ya está registrada en el sistema.");
+            }
+
             var cliente = new Cliente
             {
                 IdTipoDoc       = tipoCed.IdTipoDoc,
-                NumeroDocumento = dto.NumeroDocumento ?? "000-0000000-0",
+                NumeroDocumento = numeroDoc,
                 Nombres         = dto.Nombre,
                 Apellidos       = dto.Apellido,
                 Email           = dto.Email,
@@ -94,6 +103,7 @@ namespace AuraSpa.Api.Controllers
                 Email          = dto.Email,
                 ContrasenaHash = BCrypt.Net.BCrypt.HashPassword(dto.Password),
                 Nombre         = dto.Nombre,
+                NombreUsuario  = dto.Email,
                 Apellido       = dto.Apellido,
                 Telefono       = dto.Telefono,
                 IdPerfil       = perfil.IdPerfil,

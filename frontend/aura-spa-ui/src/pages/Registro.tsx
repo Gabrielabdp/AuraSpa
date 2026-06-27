@@ -8,6 +8,8 @@ const Registro: React.FC = () => {
   const [apellido, setApellido] = useState('');
   const [email, setEmail] = useState('');
   const [telefono, setTelefono] = useState('');
+  const [cedula, setCedula] = useState('');
+  const [cedulaError, setCedulaError] = useState('');
   const [password, setPassword] = useState('');
   const [confirmar, setConfirmar] = useState('');
   const [loading, setLoading] = useState(false);
@@ -44,6 +46,7 @@ const Registro: React.FC = () => {
         email,
         password,
         telefono,
+        numeroDocumento: cedula,
         nombrePerfil: 'Cliente',
       });
       setSuccess(true);
@@ -106,6 +109,27 @@ const Registro: React.FC = () => {
           <div style={{ marginBottom: '20px' }}>
             <label style={{ display: 'block', marginBottom: '8px', color: 'var(--aura-gray)', fontWeight: '500', fontSize: '0.9rem' }}>Teléfono</label>
             <input type="tel" placeholder="809-555-0000" value={telefono} onChange={(e) => setTelefono(e.target.value)} required style={inputStyle} />
+          </div>
+
+          <div style={{ marginBottom: '20px' }}>
+            <label style={{ display: 'block', marginBottom: '8px', color: 'var(--aura-gray)', fontWeight: '500', fontSize: '0.9rem' }}>Cédula</label>
+            <input
+              type="text"
+              placeholder="000-0000000-0"
+              value={cedula}
+              onChange={(e) => {
+                let valor = e.target.value.replace(/[^0-9]/g, '');
+                if (valor.length > 3) valor = valor.slice(0,3) + '-' + valor.slice(3);
+                if (valor.length > 11) valor = valor.slice(0,11) + '-' + valor.slice(11);
+                valor = valor.slice(0, 13);
+                setCedula(valor);
+                setCedulaError(valor.length === 13 || valor.length === 0 ? '' : 'Formato esperado: 000-0000000-0');
+              }}
+              required
+              maxLength={13}
+              style={{ ...inputStyle, borderColor: cedulaError ? '#c62828' : '#ddd' }}
+            />
+            {cedulaError && <p style={{ color: '#c62828', fontSize: '0.8rem', margin: '6px 0 0' }}>{cedulaError}</p>}
           </div>
 
           <div style={{ marginBottom: '20px' }}>
