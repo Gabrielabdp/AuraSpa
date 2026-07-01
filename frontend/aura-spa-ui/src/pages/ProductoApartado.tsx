@@ -231,7 +231,7 @@ const ProductoApartado: React.FC = () => {
           Seguir comprando
         </button>
 
-        <button onClick={() => navigate('/')} style={{ width: '100%', padding: '15px', fontSize: '1rem', borderRadius: '50px', border: '2px solid var(--aura-lavender)', background: 'transparent', color: 'var(--aura-lavender)', fontWeight: '700', cursor: 'pointer' }}>
+        <button onClick={() => navigate('/dashboard/client')} style={{ width: '100%', padding: '15px', fontSize: '1rem', borderRadius: '50px', border: '2px solid var(--aura-lavender)', background: 'transparent', color: 'var(--aura-lavender)', fontWeight: '700', cursor: 'pointer' }}>
           Ir al inicio
         </button>
 

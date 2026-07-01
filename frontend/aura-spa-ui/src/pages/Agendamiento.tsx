@@ -22,7 +22,24 @@ const Agendamiento: React.FC = () => {
   const navigate = useNavigate();
   const [searchParams] = useSearchParams();
 
-  const [categoria, setCategoria] = useState<CategoriaServicio>((searchParams.get('categoria') as CategoriaServicio) ?? '');
+  const mapearCategoria = (cat: string): CategoriaServicio => {
+    const mapa: Record<string, CategoriaServicio> = {
+      'Faciales': 'Facial',
+      'Masajes': 'Masaje',
+      'Cejas/Pestañas': 'Cejas y Pestañas',
+      'Facial': 'Facial',
+      'Masaje': 'Masaje',
+      'Cejas y Pestañas': 'Cejas y Pestañas',
+      'Uñas': 'Uñas',
+      'Depilación': 'Depilación',
+      'Pelo': 'Pelo',
+    };
+    return mapa[cat] ?? '';
+  };
+
+  const [categoria, setCategoria] = useState<CategoriaServicio>(
+    mapearCategoria(searchParams.get('categoria') ?? '')
+  );
   const [fecha, setFecha] = useState('');
   const [hora, setHora] = useState('');
   const [loading, setLoading] = useState(false);
@@ -47,6 +64,60 @@ const Agendamiento: React.FC = () => {
   const [necesitaRemocion, setNecesitaRemocion] = useState('');
   const [tipoServicioPelo, setTipoServicioPelo] = useState('');
   const [largoCabello, setLargoCabello] = useState('');
+
+  // Preselección automática según el servicio elegido en el catálogo
+  useEffect(() => {
+    const itemId = searchParams.get('itemId');
+    if (!itemId) return;
+
+    const mapaServicio: Record<string, Partial<{
+      tipoFacial: string; tipoPiel: string;
+      tipoMasaje: string; duracionMasaje: string;
+      zonaDepilacion: string; metodoDepilacion: string;
+      subservicioCejas: string;
+      tipoUnias: string;
+      tipoServicioPelo: string;
+    }>> = {
+      '5':  { tipoFacial: 'Limpieza' },
+      '6':  { tipoFacial: 'Hidratación' },
+      '7':  { tipoFacial: 'Anti-edad' },
+      '8':  { tipoFacial: 'Acné' },
+      '9':  { tipoMasaje: 'Relajante', duracionMasaje: '60' },
+      '10': { tipoMasaje: 'Relajante', duracionMasaje: '90' },
+      '11': { tipoMasaje: 'Descontracturante' },
+      '12': { tipoMasaje: 'Piedras calientes' },
+      '13': { tipoMasaje: 'Drenaje linfático' },
+      '14': { zonaDepilacion: 'Axilas' },
+      '15': { zonaDepilacion: 'Piernas completas' },
+      '16': { zonaDepilacion: 'Bikini' },
+      '17': { zonaDepilacion: 'Facial' },
+      '18': { subservicioCejas: 'Diseño' },
+      '19': { subservicioCejas: 'Tinte cejas' },
+      '20': { subservicioCejas: 'Extensiones' },
+      '21': { subservicioCejas: 'Lifting' },
+      '1':  { tipoUnias: 'Manicura' },
+      '2':  { tipoUnias: 'Pedicura' },
+      '3':  { tipoUnias: 'Acrílicas' },
+      '4':  { tipoUnias: 'Nail Art' },
+      '22': { tipoServicioPelo: 'Corte' },
+      '23': { tipoServicioPelo: 'Tinte' },
+      '24': { tipoServicioPelo: 'Mechas' },
+      '25': { tipoServicioPelo: 'Keratina' },
+      '26': { tipoServicioPelo: 'Hidratación' },
+    };
+
+    const preset = mapaServicio[itemId];
+    if (!preset) return;
+    if (preset.tipoFacial) setTipoFacial(preset.tipoFacial);
+    if (preset.tipoPiel) setTipoPiel(preset.tipoPiel);
+    if (preset.tipoMasaje) setTipoMasaje(preset.tipoMasaje);
+    if (preset.duracionMasaje) setDuracionMasaje(preset.duracionMasaje);
+    if (preset.zonaDepilacion) setZonaDepilacion(preset.zonaDepilacion);
+    if (preset.metodoDepilacion) setMetodoDepilacion(preset.metodoDepilacion);
+    if (preset.subservicioCejas) setSubservicioCejas(preset.subservicioCejas);
+    if (preset.tipoUnias) setTipoUnias(preset.tipoUnias);
+    if (preset.tipoServicioPelo) setTipoServicioPelo(preset.tipoServicioPelo);
+  }, []);
 
   useEffect(() => {
     if (categoria) {
