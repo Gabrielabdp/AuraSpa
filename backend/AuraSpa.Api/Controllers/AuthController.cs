@@ -98,7 +98,7 @@ namespace AuraSpa.Api.Controllers
             _ctx.Clientes.Add(cliente);
             await _ctx.SaveChangesAsync();
 
-            _ctx.Usuarios.Add(new Usuario
+            var usuario = new Usuario
             {
                 Email          = dto.Email,
                 ContrasenaHash = BCrypt.Net.BCrypt.HashPassword(dto.Password),
@@ -108,10 +108,24 @@ namespace AuraSpa.Api.Controllers
                 Telefono       = dto.Telefono,
                 IdPerfil       = perfil.IdPerfil,
                 IdCliente      = cliente.IdCliente
-            });
+            };
+            _ctx.Usuarios.Add(usuario);
             await _ctx.SaveChangesAsync();
+            usuario.Perfil = perfil;
 
-            return Ok(new { message = "Usuario registrado exitosamente." });
+            return Ok(new
+            {
+                token   = GenerateJwt(usuario),
+                usuario = new
+                {
+                    id       = usuario.IdUsuario,
+                    nombre   = usuario.Nombre,
+                    apellido = usuario.Apellido,
+                    email    = usuario.Email,
+                    perfil   = usuario.Perfil?.Nombre ?? "Cliente",
+                    rol      = usuario.Perfil?.Nombre ?? "Cliente"
+                }
+            });
         }
 
         // PUT /api/auth/perfil — editar datos propios

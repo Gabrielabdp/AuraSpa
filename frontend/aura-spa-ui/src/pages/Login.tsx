@@ -34,6 +34,7 @@ const Login: React.FC = () => {
       } else {
         setError(`Error: ${err.message}`);
       }
+      setPassword('');
     } finally {
       setLoading(false);
     }

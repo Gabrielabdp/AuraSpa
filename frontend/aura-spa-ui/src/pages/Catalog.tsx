@@ -1,5 +1,5 @@
 import React, { useState, useEffect } from 'react';
-import { Search, ShoppingCart, Sparkles, Package, Clock, Lock } from 'lucide-react';
+import { Search, ShoppingCart, Sparkles, Package, Lock } from 'lucide-react';
 import { useAuth } from '../context/AuthContext';
 import { useNavigate } from 'react-router-dom';
 import apiClient from '../services/apiClient';
@@ -188,11 +188,6 @@ const Catalog: React.FC = () => {
                 )}
 
                 <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', marginBottom: '14px', marginTop: 'auto' }}>
-                  {item.duracionMinutos && (
-                    <span style={{ display: 'flex', alignItems: 'center', gap: '4px', color: '#888', fontSize: '0.8rem' }}>
-                      <Clock size={13} />{item.duracionMinutos} minutos
-                    </span>
-                  )}
                   {item.stock !== undefined && (
                     <span style={{ color: item.stock > 0 ? '#22c55e' : '#ef4444', fontSize: '0.8rem', fontWeight: '600' }}>
                       {item.stock > 0 ? `Stock: ${item.stock}` : 'Sin stock'}

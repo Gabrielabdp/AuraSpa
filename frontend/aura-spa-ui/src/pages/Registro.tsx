@@ -2,6 +2,7 @@ import React, { useState } from 'react';
 import { useNavigate } from 'react-router-dom';
 import { Loader2 } from 'lucide-react';
 import apiClient from '../services/apiClient';
+import { useAuth } from '../context/AuthContext';
 
 const Registro: React.FC = () => {
   const [nombre, setNombre] = useState('');
@@ -18,6 +19,7 @@ const Registro: React.FC = () => {
   const [success, setSuccess] = useState(false);
 
   const navigate = useNavigate();
+  const { login } = useAuth();
 
   const validarPassword = (valor: string) => {
     if (valor.length > 0 && valor.length < 8) {
@@ -40,7 +42,7 @@ const Registro: React.FC = () => {
     setLoading(true);
     setError('');
     try {
-      await apiClient.post('/api/auth/register', {
+      const response = await apiClient.post('/api/auth/register', {
         nombre,
         apellido,
         email,
@@ -49,8 +51,10 @@ const Registro: React.FC = () => {
         numeroDocumento: cedula,
         nombrePerfil: 'Cliente',
       });
+      const { token, usuario } = response.data;
+      login(token, usuario);
       setSuccess(true);
-      setTimeout(() => navigate('/login'), 2000);
+      setTimeout(() => navigate('/dashboard/client'), 2000);
     } catch (err: any) {
       if (err.response?.data) {
         setError(typeof err.response.data === 'string' ? err.response.data : 'Error al registrar. Intenta de nuevo.');
@@ -73,7 +77,7 @@ const Registro: React.FC = () => {
         <div className="card-aura animate-fade-in" style={{ width: '100%', maxWidth: '500px', padding: '50px', borderRadius: '30px', textAlign: 'center' }}>
           <div style={{ fontSize: '3rem', marginBottom: '20px' }}>✅</div>
           <h2 style={{ color: 'var(--aura-navy)', fontWeight: 'bold', marginBottom: '12px' }}>¡Cuenta creada!</h2>
-          <p style={{ color: 'var(--aura-gray)' }}>Redirigiendo al login...</p>
+          <p style={{ color: 'var(--aura-gray)' }}>Redirigiendo a tu panel...</p>
         </div>
       </div>
     );
