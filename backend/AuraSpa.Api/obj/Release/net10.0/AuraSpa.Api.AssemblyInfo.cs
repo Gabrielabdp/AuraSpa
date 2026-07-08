@@ -14,7 +14,7 @@ using System.Reflection;
 [assembly: System.Reflection.AssemblyCompanyAttribute("AuraSpa.Api")]
 [assembly: System.Reflection.AssemblyConfigurationAttribute("Release")]
 [assembly: System.Reflection.AssemblyFileVersionAttribute("1.0.0.0")]
-[assembly: System.Reflection.AssemblyInformationalVersionAttribute("1.0.0")]
+[assembly: System.Reflection.AssemblyInformationalVersionAttribute("1.0.0+3df0f8eb83906ffc1e9ecb1ee64b2f6b4f7fafb6")]
 [assembly: System.Reflection.AssemblyProductAttribute("AuraSpa.Api")]
 [assembly: System.Reflection.AssemblyTitleAttribute("AuraSpa.Api")]
 [assembly: System.Reflection.AssemblyVersionAttribute("1.0.0.0")]

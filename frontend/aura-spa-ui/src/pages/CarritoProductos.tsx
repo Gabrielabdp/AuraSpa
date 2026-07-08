@@ -1,4 +1,4 @@
-import React, { useState, useEffect } from 'react';
+import React, { useState, useEffect, useRef } from 'react';
 import { useNavigate } from 'react-router-dom';
 import { ShoppingCart, Trash2, Plus, Minus, MapPin, CheckCircle, ArrowLeft } from 'lucide-react';
 import apiClient from '../services/apiClient';
@@ -23,6 +23,13 @@ const CarritoProductos: React.FC = () => {
   const [reservado,  setReservado]  = useState(false);
   const [procesando, setProcesando] = useState(false);
   const [notas,      setNotas]      = useState('');
+  const [carritoSnapshot, setCarritoSnapshot] = useState<ProductoItem[]>([]);
+  const [totalSnapshot,   setTotalSnapshot]   = useState(0);
+  const [itbisSnapshot,   setItbisSnapshot]   = useState(0);
+  // Ref para acceso sincrónico en el PDF (los useState son asíncronos)
+  const snapshotRef = useRef<ProductoItem[]>([]);
+  const totalRef    = useRef(0);
+  const itbisRef    = useRef(0);
 
   // Sincronizar con localStorage
   useEffect(() => {
@@ -47,6 +54,17 @@ const CarritoProductos: React.FC = () => {
     try {
       // En producción: POST /api/reservas con los productos y la sucursal
       await new Promise(r => setTimeout(r, 1200)); // simulación
+      // Guardar snapshot para el PDF antes de limpiar
+      const snapData  = [...carrito];
+      const snapTotal = carrito.reduce((a,p)=>a+p.precio*p.cantidad,0);
+      const snapItbis = carrito.reduce((a,p)=>a+p.precio*p.cantidad*0.18,0);
+      // Guardar en ref (sincrónico) Y en estado (para re-render)
+      snapshotRef.current = snapData;
+      totalRef.current    = snapTotal;
+      itbisRef.current    = snapItbis;
+      setCarritoSnapshot(snapData);
+      setTotalSnapshot(snapTotal);
+      setItbisSnapshot(carrito.reduce((a,p)=>a+p.precio*p.cantidad*0.18,0));
       setReservado(true);
       localStorage.removeItem('aura_carrito');
       setCarrito([]);
@@ -97,7 +115,8 @@ const CarritoProductos: React.FC = () => {
     y += 12;
 
     doc.setFont('helvetica','normal'); doc.setTextColor(80,80,80);
-    carrito.forEach(item => {
+    const itemsParaPDF = snapshotRef.current.length > 0 ? snapshotRef.current : carritoSnapshot;
+    itemsParaPDF.forEach(item => {
       doc.text(item.nombre.slice(0,35), m+2, y);
       doc.text(String(item.cantidad), pw-70, y, {align:'right'});
       doc.text(`RD$ ${item.precio.toLocaleString('es-DO',{minimumFractionDigits:2})}`, pw-45, y, {align:'right'});
@@ -108,7 +127,9 @@ const CarritoProductos: React.FC = () => {
     y += 5;
     doc.setDrawColor(220,216,240); doc.line(m, y, pw-m, y); y += 8;
     doc.setFont('helvetica','bold'); doc.setTextColor(31,45,61);
-    doc.text(`Total (inc. ITBIS 18%): RD$ ${(total+itbis).toLocaleString('es-DO',{minimumFractionDigits:2})}`, pw-m, y, {align:'right'});
+    const tTotal = totalRef.current > 0 ? totalRef.current : totalSnapshot;
+    const tItbis = itbisRef.current > 0 ? itbisRef.current : itbisSnapshot;
+    doc.text(`Total (inc. ITBIS 18%): RD$ ${(tTotal+tItbis).toLocaleString('es-DO',{minimumFractionDigits:2})}`, pw-m, y, {align:'right'});
 
     y += 15;
     doc.setFont('helvetica','italic'); doc.setFontSize(8); doc.setTextColor(150,150,150);
