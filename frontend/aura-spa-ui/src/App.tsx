@@ -19,7 +19,6 @@ import RecuperarContrasena from './pages/RecuperarContrasena';
 import Clientes from './pages/Clientes';
 import Reportes from './pages/Reportes';
 import Core from './pages/Core';
-import ProductoApartado from './pages/ProductoApartado';
 import GestionCitas from './pages/GestionCitas';
 import CarritoProductos from './pages/CarritoProductos';
 import CitasEspecialista from './pages/CitasEspecialista';
@@ -78,13 +77,6 @@ function App() {
               denyRoles={['Admin','Cajero','Especialista']}
               denyMessage="Los administradores y staff no pueden reservar citas desde el portal de clientes.">
               <><Navbar /><Agendamiento /></>
-            </PrivateRoute>
-          } />
-          <Route path="/producto-apartado" element={
-            <PrivateRoute roles={['Cliente']}
-              denyRoles={['Admin','Cajero','Especialista']}
-              denyMessage="Los administradores y staff no pueden realizar compras desde el portal de clientes.">
-              <ProductoApartado />
             </PrivateRoute>
           } />
           <Route path="/cita-confirmada" element={

@@ -1,4 +1,5 @@
 import React, { useState, useEffect } from 'react';
+import { createPortal } from 'react-dom';
 import { Search, ShoppingCart, Sparkles, Package, Lock } from 'lucide-react';
 import { useAuth } from '../context/AuthContext';
 import { useNavigate } from 'react-router-dom';
@@ -16,19 +17,26 @@ const Catalog: React.FC = () => {
   const [carritoCount, setCarritoCount] = useState<number>(() => {
     try { return JSON.parse(localStorage.getItem('aura_carrito')||'[]').reduce((a:number,p:any)=>a+p.cantidad,0); } catch { return 0; }
   });
+  const [toast, setToast] = useState<string | null>(null);
 
   const agregarAlCarrito = (item: any) => {
     const carrito = JSON.parse(localStorage.getItem('aura_carrito')||'[]');
-    const existe = carrito.find((p:any)=>p.id===item.idItem||p.id===item.id);
+    const existe = carrito.find((p:any)=>p.id===item.id);
     if (existe) {
       existe.cantidad += 1;
     } else {
-      carrito.push({ id:item.idItem||item.id, nombre:item.nombre, precio:item.precioBase||item.precio, cantidad:1, imagenUrl:item.imagenUrl });
+      carrito.push({ id:item.id, nombre:item.nombre, precio:item.precio, cantidad:1, imagenUrl:item.imagenUrl });
     }
     localStorage.setItem('aura_carrito', JSON.stringify(carrito));
     setCarritoCount(carrito.reduce((a:number,p:any)=>a+p.cantidad,0));
-    alert(`"${item.nombre}" agregado al carrito.`);
+    setToast(`🛍️ ${item.nombre} agregado al carrito`);
   };
+
+  useEffect(() => {
+    if (!toast) return;
+    const timer = setTimeout(() => setToast(null), 2000);
+    return () => clearTimeout(timer);
+  }, [toast]);
 
   const [items,      setItems]      = useState<CatalogItem[]>([]);
   const [categorias, setCategorias] = useState<string[]>(['Todos']);
@@ -231,6 +239,19 @@ const Catalog: React.FC = () => {
             </div>
           ))}
         </div>
+      )}
+
+      {toast && createPortal(
+        <div className="toast-aura" style={{
+          position: 'fixed', bottom: '30px', right: '30px', zIndex: 9999,
+          background: 'var(--aura-navy)', color: 'white',
+          borderRadius: '15px', padding: '18px 28px',
+          borderLeft: '5px solid var(--aura-lavender)',
+          boxShadow: '0 14px 36px rgba(0,0,0,0.35)', fontSize: '1.05rem', fontWeight: '700'
+        }}>
+          {toast}
+        </div>,
+        document.body
       )}
     </div>
   );

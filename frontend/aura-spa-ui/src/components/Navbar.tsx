@@ -1,6 +1,7 @@
 import React from 'react';
 import { Link, useNavigate } from 'react-router-dom';
 import { useAuth } from '../context/AuthContext';
+import { ShoppingCart, Sparkles } from 'lucide-react';
 import Aurora from './Aurora';
 // cart count
 
@@ -28,20 +29,29 @@ const Navbar: React.FC = () => {
           </Link>
 
           <div style={{ display:'flex', alignItems:'center', gap:'15px' }}>
-            {/* Servicios — visible para todos pero Catalog maneja quién puede reservar */}
-            <Link to="/catalog" className="nav-link-aura">Servicios</Link>
-
             {isAuthenticated ? (
               <div style={{ display:'flex', alignItems:'center', gap:'12px' }}>
                 <span style={{ fontWeight:'bold', color:'var(--aura-navy)', fontSize:'0.9rem' }}>
                   Hola, {user?.nombre}
                 </span>
 
+                {/* Servicios — visible para todos pero Catalog maneja quién puede reservar */}
+                <Link
+                  to="/catalog"
+                  className="btn-outline-aura"
+                  style={{ padding:'5px 15px', fontSize:'0.8rem', borderRadius:'25px', textDecoration:'none', display:'inline-flex', alignItems:'center', justifyContent:'center', gap:'6px', height:'31px', boxSizing:'border-box' }}
+                >
+                  <Sparkles size={14} /> Servicios
+                </Link>
+
                 {/* Carrito — solo clientes */}
                 {esCliente && (
-                  <button onClick={() => navigate('/carrito')}
-                    style={{ padding:'5px 15px', fontSize:'0.8rem', borderRadius:'25px', border:'1px solid var(--aura-lavender)', color:'var(--aura-lavender)', background:'white', cursor:'pointer', position:'relative' }}>
-                    Carrito
+                  <button
+                    onClick={() => navigate('/carrito')}
+                    className="btn-outline-aura"
+                    style={{ padding:'5px 15px', fontSize:'0.8rem', borderRadius:'25px', display:'inline-flex', alignItems:'center', justifyContent:'center', gap:'6px', height:'31px', boxSizing:'border-box' }}
+                  >
+                    <ShoppingCart size={14} /> Carrito
                   </button>
                 )}
 
@@ -95,6 +105,13 @@ const Navbar: React.FC = () => {
               </div>
             ) : (
               <div style={{ display:'flex', alignItems:'center', gap:'10px' }}>
+                <Link
+                  to="/catalog"
+                  className="btn-outline-aura"
+                  style={{ padding:'5px 15px', fontSize:'0.8rem', borderRadius:'25px', textDecoration:'none', display:'inline-flex', alignItems:'center', justifyContent:'center', gap:'6px', height:'31px', boxSizing:'border-box' }}
+                >
+                  <Sparkles size={14} /> Servicios
+                </Link>
                 <Link to="/login" className="nav-link-aura">Entrar</Link>
                 <Link to="/registro" className="btn-AuraSpa" style={{ padding:'8px 25px', fontSize:'0.9rem' }}>Unirse</Link>
               </div>
