@@ -45,6 +45,7 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
     setToken(null);
     localStorage.removeItem('aura_user');
     localStorage.removeItem('aura_token');
+    sessionStorage.setItem('aura_cerro_sesion', '1');
   };
 
   return (

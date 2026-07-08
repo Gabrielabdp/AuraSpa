@@ -43,6 +43,20 @@ const Reportes: React.FC = () => {
       </div>
 
       {loading && <div style={{ textAlign: 'center', padding: '80px' }}><Loader2 className="animate-spin" size={40} style={{ color: 'var(--aura-lavender)' }} /></div>}
+
+      {/* Mensaje cuando no hay datos en el mes seleccionado */}
+      {!loading && !error && data && data.resumenMes?.totalVentas === 0 && (
+        <div style={{ display:'flex',justifyContent:'center',padding:'40px 0' }}>
+          <div className="card-aura animate-fade-in" style={{ maxWidth:'420px',width:'100%',padding:'50px',borderRadius:'28px',textAlign:'center' }}>
+            <div style={{ fontSize:'3rem',marginBottom:'16px' }}>📭</div>
+            <h3 style={{ color:'var(--aura-navy)',fontWeight:'bold',marginBottom:'8px' }}>Sin registros este mes</h3>
+            <p style={{ color:'#888',fontSize:'0.9rem',marginBottom:'20px' }}>
+              No se encontraron ventas ni citas para <strong>{['Enero','Febrero','Marzo','Abril','Mayo','Junio','Julio','Agosto','Septiembre','Octubre','Noviembre','Diciembre'][mes-1]} {anio}</strong>.
+            </p>
+            <p style={{ color:'#aaa',fontSize:'0.82rem' }}>Selecciona otro mes para ver sus métricas.</p>
+          </div>
+        </div>
+      )}
       {error && <p style={{ textAlign: 'center', color: '#c62828', padding: '40px', background: '#ffebee', borderRadius: '20px' }}>{error}</p>}
 
       {!loading && !error && data && (

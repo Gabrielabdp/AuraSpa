@@ -9,6 +9,8 @@ const ProductoApartado: React.FC = () => {
   const location = useLocation();
   const { user } = useAuth();
 
+  const [sucursalSel, setSucursalSel] = React.useState('AuraSpa Principal');
+  const SUCURSALES = ['AuraSpa Principal', 'AuraSpa Piantini', 'AuraSpa Bella Vista'];
   const producto = location.state?.producto || 'Producto seleccionado';
   const precio = location.state?.precio || 0;
   const referencia = `APRT-${Math.floor(Math.random() * 9000) + 1000}`;
@@ -110,7 +112,7 @@ const ProductoApartado: React.FC = () => {
     const productoData: [string, string][] = [
       ['Producto:', producto],
       ['Precio:', `RD$ ${precio.toLocaleString('es-DO', { minimumFractionDigits: 2 })}`],
-      ['Sucursal de retiro:', 'AuraSpa Piantini — Sucursal Principal'],
+      ['Sucursal de retiro:', sucursalSel],
       ['Fecha de reserva:', fechaHoy],
     ];
 
@@ -207,7 +209,7 @@ const ProductoApartado: React.FC = () => {
               <MapPin size={16} color="var(--aura-lavender)" />
               <div>
                 <span style={{ fontSize: '0.8rem', color: 'var(--aura-gray)' }}>Retiro en</span>
-                <p style={{ fontSize: '0.9rem', fontWeight: '600', color: 'var(--aura-navy)', margin: 0 }}>AuraSpa Piantini — Sucursal Principal</p>
+                <p style={{ fontSize: '0.9rem', fontWeight: '600', color: 'var(--aura-navy)', margin: 0 }}>{sucursalSel}</p>
               </div>
             </div>
           </div>
@@ -223,6 +225,13 @@ const ProductoApartado: React.FC = () => {
   </div>
 </div>
 
+        <div style={{ marginBottom: '16px', textAlign: 'left' }}>
+          <label style={{ display: 'block', marginBottom: '8px', fontWeight: '600', color: 'var(--aura-navy)', fontSize: '0.9rem' }}>Sucursal de retiro</label>
+          <select value={sucursalSel} onChange={e => setSucursalSel(e.target.value)}
+            style={{ width: '100%', padding: '12px', borderRadius: '15px', border: '1px solid #ddd', outline: 'none', fontSize: '0.9rem' }}>
+            {SUCURSALES.map(s => <option key={s}>{s}</option>)}
+          </select>
+        </div>
         <button onClick={descargarPDF} style={{ width: '100%', padding: '15px', fontSize: '1rem', borderRadius: '50px', border: '2px solid #6B5B93', background: '#f0ecff', color: '#6B5B93', fontWeight: '700', cursor: 'pointer', display: 'flex', alignItems: 'center', justifyContent: 'center', gap: '8px', marginBottom: '12px' }}>
           <Download size={18} /> Descargar comprobante
         </button>
@@ -231,7 +240,7 @@ const ProductoApartado: React.FC = () => {
           Seguir comprando
         </button>
 
-        <button onClick={() => navigate('/')} style={{ width: '100%', padding: '15px', fontSize: '1rem', borderRadius: '50px', border: '2px solid var(--aura-lavender)', background: 'transparent', color: 'var(--aura-lavender)', fontWeight: '700', cursor: 'pointer' }}>
+        <button onClick={() => navigate('/dashboard/client')} style={{ width: '100%', padding: '15px', fontSize: '1rem', borderRadius: '50px', border: '2px solid var(--aura-lavender)', background: 'transparent', color: 'var(--aura-lavender)', fontWeight: '700', cursor: 'pointer' }}>
           Ir al inicio
         </button>
 

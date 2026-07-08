@@ -77,10 +77,19 @@ namespace AuraSpa.Api.Controllers
             var tipoCed = await _ctx.TiposDocumento.FirstOrDefaultAsync(t => t.Codigo == "CED");
             if (tipoCed == null) return BadRequest("Base de datos no inicializada.");
 
+            var numeroDoc = dto.NumeroDocumento ?? $"SN-{Guid.NewGuid().ToString("N").Substring(0, 12).ToUpper()}";
+
+            if (!string.IsNullOrEmpty(dto.NumeroDocumento))
+            {
+                bool cedulaExiste = await _ctx.Clientes.AnyAsync(c => c.NumeroDocumento == numeroDoc);
+                if (cedulaExiste)
+                    return BadRequest("Esta cédula ya está registrada en el sistema.");
+            }
+
             var cliente = new Cliente
             {
                 IdTipoDoc       = tipoCed.IdTipoDoc,
-                NumeroDocumento = dto.NumeroDocumento ?? "000-0000000-0",
+                NumeroDocumento = numeroDoc,
                 Nombres         = dto.Nombre,
                 Apellidos       = dto.Apellido,
                 Email           = dto.Email,
@@ -94,6 +103,7 @@ namespace AuraSpa.Api.Controllers
                 Email          = dto.Email,
                 ContrasenaHash = BCrypt.Net.BCrypt.HashPassword(dto.Password),
                 Nombre         = dto.Nombre,
+                NombreUsuario  = dto.Email,
                 Apellido       = dto.Apellido,
                 Telefono       = dto.Telefono,
                 IdPerfil       = perfil.IdPerfil,
@@ -123,6 +133,24 @@ namespace AuraSpa.Api.Controllers
             await _ctx.SaveChangesAsync();
             return Ok(new { message = "Datos actualizados." });
         }
+
+
+        // GET /api/auth/clientes — lista de clientes (Admin/Cajero)
+        [HttpGet("clientes")]
+        [Authorize(Roles = "Admin,Cajero")]
+        public async Task<IActionResult> GetClientes()
+        {
+            var clientes = await _ctx.Clientes
+                .OrderByDescending(c => c.FechaRegistro)
+                .Select(c => new {
+                    c.IdCliente, c.Nombres, c.Apellidos, c.Email,
+                    c.Telefono, c.NumeroDocumento, c.FechaRegistro
+                })
+                .ToListAsync();
+            return Ok(clientes);
+        }
+
+
 
         private string GenerateJwt(Usuario usuario)
         {

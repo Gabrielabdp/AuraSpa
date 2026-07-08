@@ -159,7 +159,9 @@ namespace AuraSpa.Api.Controllers
             var cita = await _ctx.Citas.FindAsync(id);
             if (cita == null) return NotFound();
 
-            var estadosValidos = new[] { "Pendiente","Aprobada","Completada","Cancelada","Rechazada" };
+            var estadosValidos = new[] { "Pendiente","Aprobada","Confirmada","Completada","Cancelada","Rechazada" };
+            // Normalizar: "Confirmada" = "Aprobada" para compatibilidad entre capas
+            if (nuevoEstado == "Confirmada") nuevoEstado = "Aprobada";
             if (!estadosValidos.Contains(nuevoEstado)) return BadRequest("Estado inválido.");
 
             cita.Estado = nuevoEstado;

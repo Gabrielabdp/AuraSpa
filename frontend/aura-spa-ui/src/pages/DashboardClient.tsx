@@ -56,10 +56,10 @@ const DashboardClient: React.FC = () => {
     <div className="animate-fade-in" style={{ padding: '60px 10%' }}>
       <div style={{ marginBottom: '50px', textAlign: 'center' }}>
         <h1 style={{ color: 'var(--aura-navy)', fontSize: '3rem', fontWeight: 'bold' }}>
-          ¡Bienvenida, {user?.nombre || 'Cliente'}! ✨
+          Bienvenida, {user?.nombre || 'Cliente'}
         </h1>
         <p style={{ color: 'var(--aura-gray)', fontSize: '1.2rem' }}>
-          Tu oasis de tranquilidad personal te espera.
+          Tu espacio de bienestar personal.
         </p>
       </div>
 

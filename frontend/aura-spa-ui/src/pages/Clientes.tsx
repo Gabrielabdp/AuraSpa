@@ -62,6 +62,7 @@ const Clientes: React.FC = () => {
       });
       setModalAgregar(false);
       setNombre(''); setApellido(''); setEmail(''); setTelefono('');
+      fetchClientes(); // Recargar la lista
       fetchClientes();
     } catch (err: any) {
       const msg = err.response?.data;

@@ -10,9 +10,26 @@ interface CatalogItem {
   duracionMinutos?: number; categoria?: string;
 }
 
-const normalizeText = (s: string) => s.toLowerCase().normalize('NFD').replace(/\u0300-\u036f/g, '');
+const normalizeText = (s: string) => s.toLowerCase().normalize('NFD').replace(/[\u0300-\u036f]/g, '');
 
 const Catalog: React.FC = () => {
+  const [carritoCount, setCarritoCount] = useState<number>(() => {
+    try { return JSON.parse(localStorage.getItem('aura_carrito')||'[]').reduce((a:number,p:any)=>a+p.cantidad,0); } catch { return 0; }
+  });
+
+  const agregarAlCarrito = (item: any) => {
+    const carrito = JSON.parse(localStorage.getItem('aura_carrito')||'[]');
+    const existe = carrito.find((p:any)=>p.id===item.idItem||p.id===item.id);
+    if (existe) {
+      existe.cantidad += 1;
+    } else {
+      carrito.push({ id:item.idItem||item.id, nombre:item.nombre, precio:item.precioBase||item.precio, cantidad:1, imagenUrl:item.imagenUrl });
+    }
+    localStorage.setItem('aura_carrito', JSON.stringify(carrito));
+    setCarritoCount(carrito.reduce((a:number,p:any)=>a+p.cantidad,0));
+    alert(`"${item.nombre}" agregado al carrito.`);
+  };
+
   const [items,      setItems]      = useState<CatalogItem[]>([]);
   const [categorias, setCategorias] = useState<string[]>(['Todos']);
   const [filter,     setFilter]     = useState<'Servicio'|'Producto'>('Servicio');
@@ -57,114 +74,162 @@ const Catalog: React.FC = () => {
 
   const handleAccion = (item: CatalogItem, e: React.MouseEvent) => {
     e.stopPropagation();
-    if (!esCliente) return; // staff no puede
+    if (!esCliente) return;
     if (item.tipo === 'Producto') {
-      navigate('/producto-apartado', { state: { producto: item.nombre, precio: item.precio } });
+      agregarAlCarrito(item);
     } else {
       navigate(`/agendamiento?itemId=${item.id}&categoria=${item.categoria}`);
     }
   };
 
   return (
-    <div className="container animate-fade-in" style={{ padding:'40px 6%' }}>
+    <div className="animate-fade-in" style={{ padding: '40px 6%', minHeight: '100vh', background: 'var(--aura-beige)' }}>
+
       {/* Header */}
-      <div className="card-aura" style={{ display:'flex', alignItems:'center', justifyContent:'space-between', marginBottom:'30px', padding:'30px', borderRadius:'30px', flexWrap:'wrap', gap:'20px' }}>
+      <div className="card-aura" style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', marginBottom: '30px', padding: '25px 30px', flexWrap: 'wrap', gap: '20px' }}>
         <div>
-          <h2 style={{ color:'var(--aura-navy)', fontWeight:'bold', margin:0 }}>Experiencias Aura</h2>
-          <p style={{ color:'#666', fontSize:'0.9rem', margin:0 }}>
-            Bienvenida, <strong>{user?.nombre || 'visitante'}</strong>
+          <h2 style={{ color: 'var(--aura-navy)', fontWeight: 'bold', margin: 0 }}>Experiencias Aura</h2>
+          <p style={{ color: '#666', fontSize: '0.9rem', margin: 0 }}>
+            {user ? <>Bienvenida, <strong>{user.nombre}</strong> — Sucursal Principal</> : 'Encuentra el tratamiento ideal en Sucursal Principal.'}
           </p>
         </div>
-        <div style={{ position:'relative', flexGrow:1, maxWidth:'400px' }}>
-          <Search size={18} style={{ position:'absolute', left:'15px', top:'12px', color:'#999' }} />
+        <div style={{ position: 'relative', flexGrow: 1, maxWidth: '400px' }}>
+          <Search size={18} style={{ position: 'absolute', left: '15px', top: '50%', transform: 'translateY(-50%)', color: '#999' }} />
           <input type="text" placeholder="Buscar servicios o productos..."
             value={searchTerm} onChange={e => setSearchTerm(e.target.value)}
-            style={{ width:'100%', padding:'12px 12px 12px 45px', borderRadius:'30px', border:'1px solid #ddd', outline:'none' }} />
+            style={{ width: '100%', padding: '12px 12px 12px 45px', borderRadius: '30px', border: '1px solid #ddd', outline: 'none', background: 'white' }} />
         </div>
       </div>
 
-      {/* Tabs */}
-      <div style={{ display:'flex', justifyContent:'center', gap:'20px', marginBottom:'20px' }}>
-        {(['Servicio','Producto'] as const).map(t => (
+      {/* Tabs Servicios / Productos */}
+      <div style={{ display: 'flex', justifyContent: 'center', gap: '15px', marginBottom: '20px' }}>
+        {(['Servicio', 'Producto'] as const).map(t => (
           <button key={t} onClick={() => { setFilter(t); setCategoria('Todos'); }}
-            style={{ padding:'12px 35px', borderRadius:'30px', border:'none', cursor:'pointer', fontWeight:'600', fontSize:'1rem',
-              background: filter===t ? 'var(--aura-navy)' : 'white',
-              color: filter===t ? 'white' : 'var(--aura-gray)',
-              boxShadow: filter===t ? '0 4px 15px rgba(31,45,61,0.2)' : '0 2px 8px rgba(0,0,0,0.05)' }}>
-            {t==='Servicio' ? <><Sparkles size={16} style={{ marginRight:6 }}/>Servicios</> : <><Package size={16} style={{ marginRight:6 }}/>Productos</>}
+            style={{
+              padding: '10px 30px', borderRadius: '30px', border: 'none', cursor: 'pointer',
+              fontWeight: '600', fontSize: '0.95rem',
+              background: filter === t ? 'var(--aura-lavender)' : 'white',
+              color: filter === t ? 'white' : 'var(--aura-gray)',
+              boxShadow: filter === t ? '0 4px 15px rgba(151,138,221,0.35)' : '0 2px 8px rgba(0,0,0,0.06)',
+              transition: 'all 0.2s'
+            }}>
+            {t === 'Servicio'
+              ? <><Sparkles size={15} style={{ marginRight: 6, verticalAlign: 'middle' }} />Servicios</>
+              : <><Package size={15} style={{ marginRight: 6, verticalAlign: 'middle' }} />Productos</>}
           </button>
         ))}
       </div>
 
       {/* Filtro categorías */}
-      {filter==='Servicio' && (
-        <div style={{ display:'flex', gap:'10px', marginBottom:'25px', flexWrap:'wrap', justifyContent:'center' }}>
+      {filter === 'Servicio' && (
+        <div style={{ display: 'flex', gap: '10px', marginBottom: '28px', flexWrap: 'wrap', justifyContent: 'center' }}>
           {categorias.map(cat => (
             <button key={cat} onClick={() => setCategoria(cat)}
-              style={{ padding:'8px 18px', borderRadius:'30px', border:'1px solid',
-                borderColor: categoria===cat ? 'var(--aura-lavender)' : '#ddd',
-                background: categoria===cat ? 'var(--aura-lavender)' : 'white',
-                color: categoria===cat ? 'white' : 'var(--aura-gray)',
-                cursor:'pointer', fontSize:'0.85rem' }}>
+              style={{
+                padding: '7px 18px', borderRadius: '30px', border: '1px solid',
+                borderColor: categoria === cat ? 'var(--aura-lavender)' : '#ddd',
+                background: categoria === cat ? 'var(--aura-lavender)' : 'white',
+                color: categoria === cat ? 'white' : 'var(--aura-gray)',
+                cursor: 'pointer', fontSize: '0.85rem', fontWeight: categoria === cat ? '600' : '400',
+                transition: 'all 0.2s'
+              }}>
               {cat}
             </button>
           ))}
         </div>
       )}
 
-      {loading && <p style={{ textAlign:'center', color:'var(--aura-gray)', padding:'60px' }}>Cargando catálogo...</p>}
-      {error   && <p style={{ textAlign:'center', color:'#c62828', padding:'40px', background:'#ffebee', borderRadius:'20px' }}>{error}</p>}
+      {loading && <p style={{ textAlign: 'center', color: 'var(--aura-gray)', padding: '60px' }}>Cargando catálogo...</p>}
+      {error && <p style={{ textAlign: 'center', color: '#c62828', padding: '40px', background: '#ffebee', borderRadius: '20px' }}>{error}</p>}
 
       {!loading && !error && (
-        <div style={{ display:'grid', gridTemplateColumns:'repeat(auto-fill, minmax(280px,1fr))', gap:'25px' }}>
+        <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fill, minmax(260px, 1fr))', gap: '25px' }}>
           {filteredItems.length === 0 ? (
-            <p style={{ gridColumn:'1/-1', textAlign:'center', color:'var(--aura-gray)', padding:'60px' }}>
+            <p style={{ gridColumn: '1/-1', textAlign: 'center', color: 'var(--aura-gray)', padding: '60px' }}>
               No se encontraron resultados.
             </p>
           ) : filteredItems.map(item => (
-            <div key={item.id} className="card-aura"
-              style={{ borderRadius:'25px', overflow:'hidden', cursor: esCliente ? 'pointer' : 'default' }}
-              onClick={esCliente ? (e) => handleAccion(item, e) : undefined}>
-              {item.imagenUrl && (
-                <img src={item.imagenUrl} alt={item.nombre}
-                  style={{ width:'100%', height:'180px', objectFit:'cover' }}
-                  onError={(e) => { (e.target as HTMLImageElement).style.display='none'; }} />
-              )}
-              <div style={{ padding:'20px' }}>
-                <div style={{ display:'flex', justifyContent:'space-between', alignItems:'flex-start', marginBottom:'8px' }}>
-                  <h4 style={{ fontWeight:'bold', color:'var(--aura-navy)', margin:0, flex:1 }}>{item.nombre}</h4>
-                  {item.categoria && item.tipo==='Servicio' && (
-                    <span style={{ background:'#f0ecff', color:'var(--aura-lavender)', padding:'2px 10px', borderRadius:'30px', fontSize:'0.72rem', fontWeight:'600', whiteSpace:'nowrap', marginLeft:'8px' }}>
-                      {item.categoria}
-                    </span>
-                  )}
-                </div>
-                {item.descripcion && <p style={{ color:'#666', fontSize:'0.83rem', margin:'0 0 12px', lineHeight:'1.4' }}>{item.descripcion}</p>}
-                <div style={{ display:'flex', justifyContent:'space-between', alignItems:'center', marginBottom:'14px' }}>
-                  <span style={{ fontWeight:'bold', color:'var(--aura-navy)', fontSize:'1.1rem' }}>
-                    RD$ {item.precio.toLocaleString('es-DO', { minimumFractionDigits:2 })}
+            <div key={item.id}
+              style={{ borderRadius: '20px', overflow: 'hidden', background: 'white', boxShadow: '0 4px 20px rgba(0,0,0,0.08)', cursor: esCliente ? 'pointer' : 'default', transition: 'transform 0.2s, box-shadow 0.2s', display: 'flex', flexDirection: 'column' }}
+              onClick={esCliente ? (e) => handleAccion(item, e) : undefined}
+              onMouseEnter={e => { if (esCliente) { (e.currentTarget as HTMLDivElement).style.transform = 'translateY(-4px)'; (e.currentTarget as HTMLDivElement).style.boxShadow = '0 8px 30px rgba(151,138,221,0.25)'; } }}
+              onMouseLeave={e => { (e.currentTarget as HTMLDivElement).style.transform = 'none'; (e.currentTarget as HTMLDivElement).style.boxShadow = '0 4px 20px rgba(0,0,0,0.08)'; }}
+            >
+              {/* Imagen con overlays */}
+              <div style={{ position: 'relative', height: '200px', background: '#f0ecff' }}>
+                {item.imagenUrl ? (
+                  <img src={item.imagenUrl} alt={item.nombre}
+                    style={{ width: '100%', height: '100%', objectFit: 'cover' }}
+                    onError={(e) => { (e.target as HTMLImageElement).style.display = 'none'; }} />
+                ) : (
+                  <div style={{ width: '100%', height: '100%', display: 'flex', alignItems: 'center', justifyContent: 'center', background: 'linear-gradient(135deg, #f0ecff, #e8e0f5)' }}>
+                    {filter === 'Servicio' ? <Sparkles size={40} color="var(--aura-lavender)" /> : <Package size={40} color="var(--aura-lavender)" />}
+                  </div>
+                )}
+
+                {/* Badge categoría - esquina superior izquierda */}
+                {item.categoria && (
+                  <span style={{
+                    position: 'absolute', top: '12px', left: '12px',
+                    background: 'var(--aura-lavender)', color: 'white',
+                    padding: '4px 12px', borderRadius: '30px',
+                    fontSize: '0.72rem', fontWeight: '700',
+                    textTransform: 'uppercase', letterSpacing: '0.5px'
+                  }}>
+                    {item.tipo === 'Producto' ? 'Producto' : item.categoria}
                   </span>
+                )}
+
+                {/* Precio - esquina superior derecha */}
+                <span style={{
+                  position: 'absolute', top: '12px', right: '12px',
+                  background: 'rgba(255,255,255,0.95)', color: 'var(--aura-navy)',
+                  padding: '4px 12px', borderRadius: '30px',
+                  fontSize: '0.85rem', fontWeight: '800',
+                  boxShadow: '0 2px 8px rgba(0,0,0,0.12)'
+                }}>
+                  RD$ {item.precio.toLocaleString('es-DO', { minimumFractionDigits: 2 })}
+                </span>
+              </div>
+
+              {/* Contenido */}
+              <div style={{ padding: '18px 20px 20px', display: 'flex', flexDirection: 'column', flex: 1 }}>
+                <h4 style={{ fontWeight: 'bold', color: 'var(--aura-navy)', margin: '0 0 6px', fontSize: '1rem', fontFamily: "'Segoe UI', sans-serif" }}>
+                  {item.nombre}
+                </h4>
+
+                {item.descripcion && (
+                  <p style={{ color: '#777', fontSize: '0.82rem', margin: '0 0 12px', lineHeight: '1.45', display: '-webkit-box', WebkitLineClamp: 2, WebkitBoxOrient: 'vertical', overflow: 'hidden' }}>
+                    {item.descripcion}
+                  </p>
+                )}
+
+                <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', marginBottom: '14px', marginTop: 'auto' }}>
                   {item.duracionMinutos && (
-                    <span style={{ display:'flex', alignItems:'center', gap:'4px', color:'#888', fontSize:'0.8rem' }}>
-                      <Clock size={13} />{item.duracionMinutos} min
+                    <span style={{ display: 'flex', alignItems: 'center', gap: '4px', color: '#888', fontSize: '0.8rem' }}>
+                      <Clock size={13} />{item.duracionMinutos} minutos
                     </span>
                   )}
                   {item.stock !== undefined && (
-                    <span style={{ color: item.stock>0 ? '#22c55e' : '#ef4444', fontSize:'0.8rem', fontWeight:'500' }}>
-                      {item.stock>0 ? `Stock: ${item.stock}` : 'Sin stock'}
+                    <span style={{ color: item.stock > 0 ? '#22c55e' : '#ef4444', fontSize: '0.8rem', fontWeight: '600' }}>
+                      {item.stock > 0 ? `Stock: ${item.stock}` : 'Sin stock'}
                     </span>
                   )}
                 </div>
 
-                {/* Botón: si no es cliente, mostrar candado informativo */}
                 {esCliente ? (
-                  <button className="btn-AuraSpa" onClick={(e) => handleAccion(item, e)}
-                    style={{ width:'100%', padding:'10px', fontSize:'0.88rem', display:'flex', alignItems:'center', justifyContent:'center', gap:'6px' }}>
-                    {item.tipo==='Servicio' ? '📅 Agendar cita' : <><ShoppingCart size={15}/>Reservar</>}
+                  <button
+                    className="btn-AuraSpa"
+                    onClick={(e) => handleAccion(item, e)}
+                    style={{ width: '100%', padding: '11px', fontSize: '0.88rem', display: 'flex', alignItems: 'center', justifyContent: 'center', gap: '7px' }}
+                  >
+                    {item.tipo === 'Servicio'
+                      ? <><span>📅</span> Agendar cita</>
+                      : <><ShoppingCart size={15} /> Reservar</>}
                   </button>
                 ) : (
-                  <div style={{ display:'flex', alignItems:'center', justifyContent:'center', gap:'6px', padding:'10px', background:'#f5f5f5', borderRadius:'30px', color:'#999', fontSize:'0.82rem' }}>
-                    <Lock size={13} /> Disponible solo para clientes
+                  <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'center', gap: '6px', padding: '11px', background: '#f5f5f5', borderRadius: '30px', color: '#999', fontSize: '0.82rem' }}>
+                    <Lock size={13} /> {user ? 'Solo clientes pueden reservar' : 'Inicia sesión para reservar'}
                   </div>
                 )}
               </div>

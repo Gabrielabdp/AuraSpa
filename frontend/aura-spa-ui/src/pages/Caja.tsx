@@ -204,14 +204,20 @@ const Caja:React.FC = () => {
   const [cotServicio, setCotServicio] = useState('');
   const [cotCantidad, setCotCantidad] = useState('1');
   const [cotSuccess,  setCotSuccess]  = useState(false);
-  const [cotNumero] = useState(`COT-${String(Math.floor(Math.random()*9000)+1000)}`);
+  const [emailEnviado, setEmailEnviado] = useState(false);
+  const cotContador = React.useRef(1001);
+  const [cotNumero, setCotNumero] = useState(`COT-${String(cotContador.current).padStart(4,'0')}`);
 
   // Movimientos
   const [movFechaDesde, setMovFechaDesde] = useState('');
   const [movFechaHasta, setMovFechaHasta] = useState('');
   const [movFiltrados,  setMovFiltrados]  = useState(MOVIMIENTOS_DATA);
+  const [movFechaError, setMovFechaError] = useState('');
 
   // CxC
+  const [cxcClienteFiltro, setCxcClienteFiltro] = useState('');
+  const [cxcFacturaFiltro, setCxcFacturaFiltro] = useState('');
+  const [cxcEstadoFiltro, setCxcEstadoFiltro] = useState('Todos');
   const [abonoModal, setAbonoModal] = useState<{id:number;nombre:string;saldo:number}|null>(null);
   const [abonoMonto, setAbonoMonto] = useState('');
   const [cxcData,    setCxcData]    = useState(CXC_DATA);
@@ -269,6 +275,13 @@ const Caja:React.FC = () => {
     setVentaSuccess(true);
     setCartVenta([]); setEfectivoRecibido('');
     setTimeout(()=>setVentaSuccess(false),3000);
+  };
+
+  const calcularMora = (cxc: typeof CXC_DATA[0]) => {
+    const hoy = new Date();
+    const venc = new Date(cxc.fechaVencimiento.split('/').reverse().join('-'));
+    const dias = Math.floor((hoy.getTime()-venc.getTime())/(1000*60*60*24));
+    return dias > 0 ? Math.round(cxc.saldoPendiente * 0.03 * dias) : 0; // 3% mensual
   };
 
   const registrarAbono = () => {
@@ -553,10 +566,19 @@ const Caja:React.FC = () => {
                 <div><label style={labelStyle}>Fecha Hasta</label><input type="date" value={movFechaHasta} onChange={e=>setMovFechaHasta(e.target.value)} style={inputStyle}/></div>
                 <div><label style={labelStyle}>Condición</label><select style={inputStyle}><option>Todos</option><option>Contado</option><option>Crédito</option></select></div>
               </div>
-              <div style={{display:'flex',gap:'10px'}}>
-                <button onClick={()=>setMovFiltrados(MOVIMIENTOS_DATA)} className="btn-AuraSpa" style={{padding:'10px 25px'}}>Filtrar</button>
-                <button onClick={()=>{setMovFechaDesde('');setMovFechaHasta('');setMovFiltrados(MOVIMIENTOS_DATA);}} className="btn-outline-aura" style={{padding:'10px 25px'}}>Limpiar</button>
-              </div>
+              <div style={{display:'flex',gap:'10px',flexDirection:'column'}}>
+                {movFechaError && <p style={{color:'#ef4444',fontSize:'0.82rem',margin:'0'}}>{movFechaError}</p>}
+                <div style={{display:'flex',gap:'10px'}}>
+                <button onClick={()=>{
+                  if(movFechaDesde && movFechaHasta && movFechaDesde > movFechaHasta){
+                    setMovFechaError('La fecha de inicio no puede ser mayor que la fecha final. Ingresa un rango válido.');
+                    return;
+                  }
+                  setMovFechaError('');
+                  setMovFiltrados(MOVIMIENTOS_DATA);
+                }} className="btn-AuraSpa" style={{padding:'10px 25px'}}>Filtrar</button>
+                <button onClick={()=>{setMovFechaDesde('');setMovFechaHasta('');setMovFiltrados(MOVIMIENTOS_DATA);setMovFechaError('');}} className="btn-outline-aura" style={{padding:'10px 25px'}}>Limpiar</button>
+              </div></div>
             </div>
             <div className="card-aura" style={{padding:'25px'}}>
               <table style={{width:'100%',borderCollapse:'collapse',fontSize:'0.85rem'}}>
@@ -601,7 +623,10 @@ const Caja:React.FC = () => {
               <div style={{display:'flex',alignItems:'center',gap:'10px',background:'#f0fdf4',border:'1px solid #86efac',borderRadius:'15px',padding:'12px 20px',marginBottom:'20px'}}>
                 <CheckCircle size={18} color="#22c55e"/>
                 <span style={{color:'#16a34a',fontSize:'0.88rem'}}>Cotización <strong>{cotNumero}</strong> generada.</span>
-                <button className="btn-AuraSpa" style={{marginLeft:'auto',padding:'6px 16px',fontSize:'0.8rem',display:'flex',alignItems:'center',gap:'5px'}}><Send size={13}/> Enviar por correo</button>
+                <button onClick={()=>{setEmailEnviado(true);setTimeout(()=>setEmailEnviado(false),3000);}}
+                  className="btn-AuraSpa" style={{marginLeft:'auto',padding:'6px 16px',fontSize:'0.8rem',display:'flex',alignItems:'center',gap:'5px'}}>
+                  <Send size={13}/> {emailEnviado ? '✓ Correo enviado' : 'Enviar por correo'}
+                </button>
               </div>
             )}
             <div style={{display:'grid',gridTemplateColumns:'1fr 280px',gap:'25px',alignItems:'start'}}>
@@ -646,7 +671,7 @@ const Caja:React.FC = () => {
                   <div style={{fontSize:'0.75rem',opacity:0.8,marginBottom:'4px'}}>Total Cotizado</div>
                   <div style={{fontSize:'1.6rem',fontWeight:'800'}}>RD$ {fmt(cartCot.reduce((a,i)=>a+i.subtotal,0))}</div>
                 </div>
-                <button onClick={()=>{if(cartCot.length===0)return;setCotSuccess(true);setCartCot([]);setTimeout(()=>setCotSuccess(false),3000);}}
+                <button onClick={()=>{if(cartCot.length===0)return;setCotSuccess(true);setCartCot([]);setCotContador(prev=>prev+1);setTimeout(()=>setCotSuccess(false),3000);}}
                   className="btn-AuraSpa" style={{width:'100%',padding:'12px',marginBottom:'10px'}} disabled={cartCot.length===0}>
                   Generar Cotización
                 </button>
@@ -665,11 +690,11 @@ const Caja:React.FC = () => {
             <div className="card-aura" style={{padding:'25px',marginBottom:'20px'}}>
               <h4 style={{fontWeight:'700',color:'var(--aura-navy)',marginBottom:'20px'}}>Filtros</h4>
               <div style={{display:'grid',gridTemplateColumns:'repeat(auto-fill,minmax(160px,1fr))',gap:'15px',marginBottom:'15px'}}>
-                <div><label style={labelStyle}>Cliente</label><input type="text" style={inputStyle}/></div>
-                <div><label style={labelStyle}>No. Factura</label><input type="text" style={inputStyle}/></div>
-                <div><label style={labelStyle}>Estado</label><select style={inputStyle}><option>Todos</option><option>Pendiente</option><option>Parcial</option><option>Saldada</option></select></div>
+                <div><label style={labelStyle}>Cliente</label><input type="text" value={cxcClienteFiltro} onChange={e=>setCxcClienteFiltro(e.target.value)} placeholder="Nombre del cliente" style={inputStyle}/></div>
+                <div><label style={labelStyle}>No. Factura</label><input type="text" value={cxcFacturaFiltro} onChange={e=>setCxcFacturaFiltro(e.target.value)} placeholder="FAC-001" style={inputStyle}/></div>
+                <div><label style={labelStyle}>Estado</label><select value={cxcEstadoFiltro} onChange={e=>setCxcEstadoFiltro(e.target.value)} style={inputStyle}><option>Todos</option><option>Pendiente</option><option>Parcial</option><option>Saldada</option></select></div>
               </div>
-              <button className="btn-AuraSpa" style={{padding:'10px 25px'}}>Aplicar Filtro</button>
+              <button onClick={()=>{}} className="btn-AuraSpa" style={{padding:'10px 25px'}}>Aplicar Filtro</button>
             </div>
             <div className="card-aura" style={{padding:'25px'}}>
               <table style={{width:'100%',borderCollapse:'collapse',fontSize:'0.85rem'}}>
@@ -681,7 +706,7 @@ const Caja:React.FC = () => {
                   </tr>
                 </thead>
                 <tbody>
-                  {cxcData.map((c,i)=>(
+                  {cxcData.filter(cx=>(cxcClienteFiltro===''||cx.clienteNombre.toLowerCase().includes(cxcClienteFiltro.toLowerCase()))&&(cxcFacturaFiltro===''||cx.ventaId.toLowerCase().includes(cxcFacturaFiltro.toLowerCase()))&&(cxcEstadoFiltro==='Todos'||cx.estado===cxcEstadoFiltro)).map((c,i)=>(
                     <tr key={c.id} style={{borderBottom:'1px solid #f0edf5',background:i%2===0?'white':'#faf9ff'}}>
                       <td style={{padding:'10px 14px',fontWeight:'500'}}>{c.ventaId}</td>
                       <td style={{padding:'10px 14px'}}>{c.clienteNombre}</td>
@@ -690,7 +715,7 @@ const Caja:React.FC = () => {
                       <td style={{padding:'10px 14px',color:'#ef4444',fontWeight:'600'}}>RD$ {fmt(c.saldoPendiente)}</td>
                       <td style={{padding:'10px 14px',color:'var(--aura-gray)'}}>{c.fechaVencimiento}</td>
                       <td style={{padding:'10px 14px'}}>
-                        {c.diasMora>0?<span style={{color:'#ef4444',fontWeight:'600'}}>{c.diasMora}d</span>:<span style={{color:'#22c55e'}}>—</span>}
+                        {c.diasMora>0?<span style={{color:'#ef4444',fontWeight:'600'}}>{c.diasMora}d · +RD$ {calcularMora(c).toLocaleString('es-DO')}</span>:<span style={{color:'#22c55e'}}>Al día</span>}
                       </td>
                       <td style={{padding:'10px 14px'}}>
                         <span style={{background:c.estado==='Parcial'?'#fffbeb':c.estado==='Saldada'?'#f0fdf4':'#fef2f2',

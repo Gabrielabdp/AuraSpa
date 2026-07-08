@@ -47,7 +47,7 @@ const GestionCitas: React.FC = () => {
         servicio: c.item?.nombre ?? '',
         especialista: c.empleado ? `${c.empleado.nombres} ${c.empleado.apellidos}` : 'Sin asignar',
         fechaHora: c.fechaHora,
-        estado: c.estado,
+        estado: (c.estado === 'Aprobada' ? 'Confirmada' : c.estado) as Cita['estado'],
         precioAcordado: c.precioAcordado,
       })));
     } catch {
@@ -108,7 +108,7 @@ const GestionCitas: React.FC = () => {
             style={{ width: '100%', padding: '10px 10px 10px 40px', borderRadius: '15px', border: '1px solid #e8e0f5', outline: 'none', background: '#fcfcfc', fontSize: '0.88rem' }} />
         </div>
         <div style={{ display: 'flex', gap: '8px', flexWrap: 'wrap' }}>
-          {['Todas', 'Pendiente', 'Confirmada', 'Completada', 'Cancelada'].map(f => (
+          {['Todas', 'Pendiente', 'Confirmada', 'Completada', 'Cancelada', 'Rechazada'].map(f => (
             <button key={f} onClick={() => setFiltro(f)} style={{
               padding: '8px 16px', borderRadius: '30px', border: '1px solid',
               borderColor: filtro === f ? 'var(--aura-lavender)' : '#ddd',
@@ -162,7 +162,7 @@ const GestionCitas: React.FC = () => {
                               style={{ padding: '7px 15px', borderRadius: '30px', border: '1px solid #22c55e', background: '#f0fdf4', color: '#22c55e', fontWeight: '600', cursor: 'pointer', fontSize: '0.8rem' }}>
                               ✓ Confirmar
                             </button>
-                            <button onClick={() => setConfirmModal({ id: cita.idCita, accion: 'Rechazada' })}
+                            <button onClick={() => { setConfirmModal({ id: cita.idCita, accion: 'Rechazada' }); setComentarioRechazo(''); }}
                               style={{ padding: '7px 15px', borderRadius: '30px', border: '1px solid #ef4444', background: '#fef2f2', color: '#ef4444', fontWeight: '600', cursor: 'pointer', fontSize: '0.8rem' }}>
                               ✗ Rechazar
                             </button>
@@ -193,7 +193,7 @@ const GestionCitas: React.FC = () => {
             </h4>
             <p style={{ color: 'var(--aura-gray)', marginBottom: '25px', fontSize: '0.9rem' }}>Esta acción actualizará el estado de la cita en el sistema.</p>
             <div style={{ display: 'flex', gap: '12px', justifyContent: 'center' }}>
-              <button onClick={() => cambiarEstado(confirmModal.id, confirmModal.accion)} className="btn-AuraSpa" style={{ padding: '10px 25px' }}>Confirmar</button>
+              <button onClick={() => { if(confirmModal.accion==='Rechazada'&&!comentarioRechazo.trim()) return; cambiarEstado(confirmModal.id, confirmModal.accion); }} className="btn-AuraSpa" style={{ padding: '10px 25px' }}>Confirmar</button>
               <button onClick={() => setConfirmModal(null)} className="btn-outline-aura" style={{ padding: '10px 25px' }}>Cancelar</button>
             </div>
           </div>
