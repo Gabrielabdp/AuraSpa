@@ -148,6 +148,24 @@ namespace AuraSpa.Api.Controllers
             return Ok(new { message = "Datos actualizados." });
         }
 
+
+        // GET /api/auth/clientes — lista de clientes (Admin/Cajero)
+        [HttpGet("clientes")]
+        [Authorize(Roles = "Admin,Cajero")]
+        public async Task<IActionResult> GetClientes()
+        {
+            var clientes = await _ctx.Clientes
+                .OrderByDescending(c => c.FechaRegistro)
+                .Select(c => new {
+                    c.IdCliente, c.Nombres, c.Apellidos, c.Email,
+                    c.Telefono, c.NumeroDocumento, c.FechaRegistro
+                })
+                .ToListAsync();
+            return Ok(clientes);
+        }
+
+
+
         private string GenerateJwt(Usuario usuario)
         {
             var key    = Encoding.UTF8.GetBytes(_cfg["Jwt:Key"]!);

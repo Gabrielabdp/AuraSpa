@@ -28,10 +28,10 @@ const CitaConfirmada: React.FC = () => {
         </div>
 
         <h2 style={{ color: 'var(--aura-navy)', fontWeight: 'bold', marginBottom: '8px', fontFamily: "'Segoe UI', Tahoma, Geneva, Verdana, sans-serif" }}>
-          ¡Cita confirmada!
+          ¡Solicitud recibida!
         </h2>
         <p style={{ color: 'var(--aura-gray)', fontSize: '0.95rem', marginBottom: '35px' }}>
-          Tu cita ha sido registrada correctamente. Tu cita está en espera de confirmación por parte del spa.
+          Tu solicitud fue enviada correctamente. El spa la revisará y recibirás confirmación pronto.
         </p>
 
         <div style={{ background: '#f8f6ff', borderRadius: '20px', padding: '25px', marginBottom: '35px', textAlign: 'left' }}>

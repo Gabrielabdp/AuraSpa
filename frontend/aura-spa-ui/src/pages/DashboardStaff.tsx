@@ -80,8 +80,8 @@ const DashboardStaff: React.FC = () => {
       {/* Header */}
       <div style={{ marginBottom: '50px', display: 'flex', justifyContent: 'space-between', alignItems: 'center', flexWrap: 'wrap', gap: '20px' }}>
         <div>
-          <h1 style={{ color: 'var(--aura-navy)', fontSize: '2.5rem', fontWeight: 'bold' }}>Panel de Control ✨</h1>
-          <p style={{ color: 'var(--aura-gray)', fontSize: '1.1rem' }}>Operaciones diarias — {user?.perfil}</p>
+          <h1 style={{ color: 'var(--aura-navy)', fontSize: '2.5rem', fontWeight: 'bold' }}>Panel de Control</h1>
+          <p style={{ color: 'var(--aura-gray)', fontSize: '1.1rem' }}>Operaciones de {user?.perfil}</p>
         </div>
         <div style={{ display: 'flex', gap: '15px', alignItems: 'center' }}>
           <div className="card-aura" style={{ padding: '15px 25px', display: 'flex', alignItems: 'center', gap: '15px' }}>

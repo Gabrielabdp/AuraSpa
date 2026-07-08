@@ -4,11 +4,15 @@ import { Loader2 } from 'lucide-react';
 import apiClient from '../services/apiClient';
 import { useAuth } from '../context/AuthContext';
 
+const soloLetras = (v:string) => v.replace(/[^a-záéíóúñüA-ZÁÉÍÓÚÑÜ\s'-]/g,'');
+const soloNums9  = (v:string) => v.replace(/\D/g,'').slice(0,9);
+
 const Registro: React.FC = () => {
   const [nombre, setNombre] = useState('');
   const [apellido, setApellido] = useState('');
   const [email, setEmail] = useState('');
   const [telefono, setTelefono] = useState('');
+  const [tipoDoc, setTipoDoc] = useState<'cedula'|'pasaporte'>('cedula');
   const [cedula, setCedula] = useState('');
   const [cedulaError, setCedulaError] = useState('');
   const [password, setPassword] = useState('');
@@ -49,6 +53,7 @@ const Registro: React.FC = () => {
         password,
         telefono,
         numeroDocumento: cedula,
+        tipoDocumento: tipoDoc,
         nombrePerfil: 'Cliente',
       });
       const { token, usuario } = response.data;
@@ -116,21 +121,35 @@ const Registro: React.FC = () => {
           </div>
 
           <div style={{ marginBottom: '20px' }}>
-            <label style={{ display: 'block', marginBottom: '8px', color: 'var(--aura-gray)', fontWeight: '500', fontSize: '0.9rem' }}>Cédula</label>
+            <label style={{ display: 'block', marginBottom: '8px', color: 'var(--aura-gray)', fontWeight: '500', fontSize: '0.9rem' }}>Tipo de Documento</label>
+            <select value={tipoDoc} onChange={(e) => { setTipoDoc(e.target.value as 'cedula'|'pasaporte'); setCedula(''); setCedulaError(''); }} style={inputStyle}>
+              <option value="cedula">Cédula de Identidad</option>
+              <option value="pasaporte">Pasaporte</option>
+            </select>
+          </div>
+          <div style={{ marginBottom: '20px' }}>
+            <label style={{ display: 'block', marginBottom: '8px', color: 'var(--aura-gray)', fontWeight: '500', fontSize: '0.9rem' }}>
+              {tipoDoc === 'cedula' ? 'Número de Cédula' : 'Número de Pasaporte'}
+            </label>
             <input
               type="text"
-              placeholder="000-0000000-0"
+              placeholder={tipoDoc === 'cedula' ? '000-0000000-0' : 'A000000000'}
               value={cedula}
               onChange={(e) => {
-                let valor = e.target.value.replace(/[^0-9]/g, '');
-                if (valor.length > 3) valor = valor.slice(0,3) + '-' + valor.slice(3);
-                if (valor.length > 11) valor = valor.slice(0,11) + '-' + valor.slice(11);
-                valor = valor.slice(0, 13);
-                setCedula(valor);
-                setCedulaError(valor.length === 13 || valor.length === 0 ? '' : 'Formato esperado: 000-0000000-0');
+                if (tipoDoc === 'cedula') {
+                  let valor = e.target.value.replace(/[^0-9]/g, '');
+                  if (valor.length > 3) valor = valor.slice(0,3) + '-' + valor.slice(3);
+                  if (valor.length > 11) valor = valor.slice(0,11) + '-' + valor.slice(11);
+                  valor = valor.slice(0, 13);
+                  setCedula(valor);
+                  setCedulaError(valor.length === 13 || valor.length === 0 ? '' : 'Formato esperado: 000-0000000-0');
+                } else {
+                  setCedula(e.target.value);
+                  setCedulaError('');
+                }
               }}
               required
-              maxLength={13}
+              maxLength={tipoDoc === 'cedula' ? 13 : 20}
               style={{ ...inputStyle, borderColor: cedulaError ? '#c62828' : '#ddd' }}
             />
             {cedulaError && <p style={{ color: '#c62828', fontSize: '0.8rem', margin: '6px 0 0' }}>{cedulaError}</p>}

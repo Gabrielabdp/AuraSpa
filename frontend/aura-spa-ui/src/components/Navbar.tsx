@@ -2,6 +2,8 @@ import React from 'react';
 import { Link, useNavigate } from 'react-router-dom';
 import { useAuth } from '../context/AuthContext';
 import Aurora from './Aurora';
+// cart count
+
 
 const Navbar: React.FC = () => {
   const { user, logout, isAuthenticated } = useAuth();
@@ -34,6 +36,14 @@ const Navbar: React.FC = () => {
                 <span style={{ fontWeight:'bold', color:'var(--aura-navy)', fontSize:'0.9rem' }}>
                   Hola, {user?.nombre}
                 </span>
+
+                {/* Carrito — solo clientes */}
+                {esCliente && (
+                  <button onClick={() => navigate('/carrito')}
+                    style={{ padding:'5px 15px', fontSize:'0.8rem', borderRadius:'25px', border:'1px solid var(--aura-lavender)', color:'var(--aura-lavender)', background:'white', cursor:'pointer', position:'relative' }}>
+                    Carrito
+                  </button>
+                )}
 
                 {/* Mi Dashboard — todos los usuarios autenticados */}
                 <button

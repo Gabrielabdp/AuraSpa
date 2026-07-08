@@ -49,7 +49,7 @@ namespace AuraSpa.Api.Controllers
         public async Task<IActionResult> GetEmpleadosPorCategoria(long categoriaId)
         {
             var empleados = await _ctx.Empleados
-                .Where(e => e.Activo)
+                .Where(e => e.Activo && e.TipoEmpleado == "Especialista")
                 .Select(e => new { e.IdEmpleado, NombreCompleto = e.Nombres + " " + e.Apellidos, e.EmailEmpresarial })
                 .ToListAsync();
             return Ok(empleados);

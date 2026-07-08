@@ -13,6 +13,23 @@ interface CatalogItem {
 const normalizeText = (s: string) => s.toLowerCase().normalize('NFD').replace(/[\u0300-\u036f]/g, '');
 
 const Catalog: React.FC = () => {
+  const [carritoCount, setCarritoCount] = useState<number>(() => {
+    try { return JSON.parse(localStorage.getItem('aura_carrito')||'[]').reduce((a:number,p:any)=>a+p.cantidad,0); } catch { return 0; }
+  });
+
+  const agregarAlCarrito = (item: any) => {
+    const carrito = JSON.parse(localStorage.getItem('aura_carrito')||'[]');
+    const existe = carrito.find((p:any)=>p.id===item.idItem||p.id===item.id);
+    if (existe) {
+      existe.cantidad += 1;
+    } else {
+      carrito.push({ id:item.idItem||item.id, nombre:item.nombre, precio:item.precioBase||item.precio, cantidad:1, imagenUrl:item.imagenUrl });
+    }
+    localStorage.setItem('aura_carrito', JSON.stringify(carrito));
+    setCarritoCount(carrito.reduce((a:number,p:any)=>a+p.cantidad,0));
+    alert(`"${item.nombre}" agregado al carrito.`);
+  };
+
   const [items,      setItems]      = useState<CatalogItem[]>([]);
   const [categorias, setCategorias] = useState<string[]>(['Todos']);
   const [filter,     setFilter]     = useState<'Servicio'|'Producto'>('Servicio');
@@ -59,7 +76,7 @@ const Catalog: React.FC = () => {
     e.stopPropagation();
     if (!esCliente) return;
     if (item.tipo === 'Producto') {
-      navigate('/producto-apartado', { state: { producto: item.nombre, precio: item.precio } });
+      agregarAlCarrito(item);
     } else {
       navigate(`/agendamiento?itemId=${item.id}&categoria=${item.categoria}`);
     }
@@ -207,7 +224,7 @@ const Catalog: React.FC = () => {
                   </button>
                 ) : (
                   <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'center', gap: '6px', padding: '11px', background: '#f5f5f5', borderRadius: '30px', color: '#999', fontSize: '0.82rem' }}>
-                    <Lock size={13} /> Inicia sesión para reservar
+                    <Lock size={13} /> {user ? 'Solo clientes pueden reservar' : 'Inicia sesión para reservar'}
                   </div>
                 )}
               </div>

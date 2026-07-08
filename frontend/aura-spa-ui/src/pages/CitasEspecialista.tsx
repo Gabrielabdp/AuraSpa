@@ -58,7 +58,7 @@ const CitasEspecialista: React.FC = () => {
         servicio: c.item?.nombre ?? '',
         categoria: c.item?.categoria?.nombre ?? '',
         fechaHora: c.fechaHora,
-        estado: c.estado,
+        estado: (c.estado === 'Aprobada' ? 'Confirmada' : c.estado) as any,
         precioAcordado: c.precioAcordado,
       }));
       // Ordenar por hora

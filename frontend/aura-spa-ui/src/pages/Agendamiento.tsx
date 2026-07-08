@@ -134,6 +134,8 @@ const Agendamiento: React.FC = () => {
   useEffect(() => {
     if (!categoria) return;
     apiClient.get('/api/catalog/empleados/0').then(res => {
+      // Asegurar que solo vienen especialistas
+      res.data = res.data.filter((e: any) => !e.tipoEmpleado || e.tipoEmpleado === 'Especialista' || e.tipo === 'Especialista');
       setEspecialistas(res.data);
     }).catch(() => {});
   }, [categoria]);

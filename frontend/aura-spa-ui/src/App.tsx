@@ -21,6 +21,7 @@ import Reportes from './pages/Reportes';
 import Core from './pages/Core';
 import ProductoApartado from './pages/ProductoApartado';
 import GestionCitas from './pages/GestionCitas';
+import CarritoProductos from './pages/CarritoProductos';
 import CitasEspecialista from './pages/CitasEspecialista';
 
 // ── Pantalla de acceso denegado ──────────────────────────────
@@ -88,6 +89,9 @@ function App() {
           } />
           <Route path="/cita-confirmada" element={
             <PrivateRoute roles={['Cliente']}><CitaConfirmada /></PrivateRoute>
+          } />
+          <Route path="/carrito" element={
+            <PrivateRoute roles={['Cliente']}><><Navbar /><CarritoProductos /></></PrivateRoute>
           } />
           <Route path="/mis-citas" element={
             <PrivateRoute roles={['Cliente']}><><Navbar /><MisCitas /></></PrivateRoute>
