@@ -2,7 +2,7 @@ import React, { useState, useEffect } from 'react';
 import { createPortal } from 'react-dom';
 import { Search, ShoppingCart, Sparkles, Package, Lock } from 'lucide-react';
 import { useAuth } from '../context/AuthContext';
-import { useNavigate } from 'react-router-dom';
+import { useNavigate, useSearchParams } from 'react-router-dom';
 import apiClient from '../services/apiClient';
 
 interface CatalogItem {
@@ -38,9 +38,12 @@ const Catalog: React.FC = () => {
     return () => clearTimeout(timer);
   }, [toast]);
 
+  const [searchParams] = useSearchParams();
   const [items,      setItems]      = useState<CatalogItem[]>([]);
   const [categorias, setCategorias] = useState<string[]>(['Todos']);
-  const [filter,     setFilter]     = useState<'Servicio'|'Producto'>('Servicio');
+  const [filter,     setFilter]     = useState<'Servicio'|'Producto'>(
+    searchParams.get('tipo') === 'Producto' ? 'Producto' : 'Servicio'
+  );
   const [searchTerm, setSearchTerm] = useState('');
   const [categoria,  setCategoria]  = useState('Todos');
   const [loading,    setLoading]    = useState(true);

@@ -13,15 +13,22 @@ interface ProductoItem {
   imagenUrl?: string;
 }
 
-const SUCURSALES = ['AuraSpa Piantini', 'AuraSpa Bella Vista', 'AuraSpa Principal'];
-
 const CarritoProductos: React.FC = () => {
   const navigate = useNavigate();
   const { user } = useAuth();
   const [carrito, setCarrito] = useState<ProductoItem[]>(() => {
     try { return JSON.parse(localStorage.getItem('aura_carrito') || '[]'); } catch { return []; }
   });
-  const [sucursal,   setSucursal]   = useState(SUCURSALES[0]);
+  const [sucursales, setSucursales] = useState<string[]>([]);
+  const [sucursal,   setSucursal]   = useState('');
+
+  useEffect(() => {
+    apiClient.get('/api/catalog/sucursales').then(res => {
+      const nombres = res.data.map((s: any) => s.nombre);
+      setSucursales(nombres);
+      if (nombres.length > 0) setSucursal(nombres[0]);
+    }).catch(() => {});
+  }, []);
   const [reservado,  setReservado]  = useState(false);
   const [procesando, setProcesando] = useState(false);
   const [notas,      setNotas]      = useState('');
@@ -354,7 +361,7 @@ const CarritoProductos: React.FC = () => {
                   <MapPin size={18} color="var(--aura-lavender)"/>
                   <span style={{ fontWeight:'700', color:'var(--aura-navy)', fontSize:'0.92rem' }}>Sucursal de retiro</span>
                 </div>
-                {SUCURSALES.map(s => (
+                {sucursales.map(s => (
                   <label key={s} style={{ display:'flex', alignItems:'center', gap:'10px', marginBottom:'10px', cursor:'pointer' }}>
                     <input type="radio" name="sucursal" checked={sucursal===s} onChange={()=>setSucursal(s)}
                       style={{ accentColor:'var(--aura-lavender)', width:'16px', height:'16px' }}/>

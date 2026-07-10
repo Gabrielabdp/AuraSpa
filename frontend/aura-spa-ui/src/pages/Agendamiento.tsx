@@ -18,6 +18,8 @@ interface Especialista { idEmpleado: number; nombreCompleto: string; }
 interface Servicio { id: number; nombre: string; categoria?: string; }
 interface Sucursal { idSucursal: number; nombre: string; }
 
+const HORAS = ['09:00','09:30','10:00','10:30','11:00','11:30','12:00','14:00','14:30','15:00','15:30','16:00','16:30','17:00'];
+
 const Agendamiento: React.FC = () => {
   const navigate = useNavigate();
   const [searchParams] = useSearchParams();
@@ -44,6 +46,7 @@ const Agendamiento: React.FC = () => {
   const [hora, setHora] = useState('');
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState('');
+  const [horasOcupadas, setHorasOcupadas] = useState<string[]>([]);
 
   const [especialistas, setEspecialistas] = useState<Especialista[]>([]);
   const [servicios, setServicios] = useState<Servicio[]>([]);
@@ -140,9 +143,25 @@ const Agendamiento: React.FC = () => {
     }).catch(() => {});
   }, [categoria]);
 
+  // Consultar horas ocupadas del especialista seleccionado en la fecha elegida
   useEffect(() => {
-    setSucursales([{ idSucursal: 1, nombre: 'AuraSpa Piantini — Sucursal Principal' }]);
-    setIdSucursal('1');
+    if (!idEspecialista || !fecha) { setHorasOcupadas([]); return; }
+    apiClient.get(`/api/citas/disponibilidad?idEmpleado=${idEspecialista}&fecha=${fecha}`).then(res => {
+      setHorasOcupadas(res.data);
+    }).catch(() => setHorasOcupadas([]));
+  }, [idEspecialista, fecha]);
+
+  // Si la hora ya elegida quedó ocupada tras cambiar especialista/fecha, la deseleccionamos
+  useEffect(() => {
+    if (hora && horasOcupadas.includes(hora)) setHora('');
+  }, [horasOcupadas]);
+
+  useEffect(() => {
+    apiClient.get('/api/catalog/sucursales').then(res => {
+      const lista = res.data.map((s: any) => ({ idSucursal: s.idSucursal, nombre: s.nombre }));
+      setSucursales(lista);
+      if (lista.length > 0) setIdSucursal(String(lista[0].idSucursal));
+    }).catch(() => {});
   }, []);
 
   const handleSubmit = async (e: React.FormEvent) => {
@@ -387,10 +406,20 @@ const Agendamiento: React.FC = () => {
             <label style={labelStyle}>Hora</label>
             <select value={hora} onChange={(e) => setHora(e.target.value)} required style={{ ...inputStyle, cursor: 'pointer' }}>
               <option value="">Selecciona una hora...</option>
-              {['09:00','09:30','10:00','10:30','11:00','11:30','12:00','14:00','14:30','15:00','15:30','16:00','16:30','17:00'].map(h => (
-                <option key={h} value={h}>{h} {parseInt(h) < 12 ? 'AM' : 'PM'}</option>
-              ))}
+              {HORAS.map(h => {
+                const ocupada = horasOcupadas.includes(h);
+                return (
+                  <option key={h} value={h} disabled={ocupada}>
+                    {h} {parseInt(h) < 12 ? 'AM' : 'PM'}{ocupada ? ' (ocupada)' : ''}
+                  </option>
+                );
+              })}
             </select>
+            {idEspecialista && fecha && horasOcupadas.length > 0 && (
+              <p style={{ fontSize: '0.78rem', color: 'var(--aura-gray)', marginTop: '8px' }}>
+                Las horas marcadas como "(ocupada)" ya tienen una cita con este especialista ese día.
+              </p>
+            )}
           </div>
 
           <p style={{ fontSize: '0.82rem', color: 'var(--aura-gray)', textAlign: 'center', marginBottom: '20px' }}>

@@ -44,6 +44,15 @@ namespace AuraSpa.Api.Controllers
         public async Task<IActionResult> GetCategorias()
             => Ok(await _ctx.CategoriasServicio.Where(c => c.Activa).OrderBy(c => c.OrdenDisplay).ToListAsync());
 
+        // GET /api/catalog/sucursales
+        [HttpGet("sucursales")]
+        public async Task<IActionResult> GetSucursales()
+            => Ok(await _ctx.Sucursales
+                .Where(s => s.Activa)
+                .OrderBy(s => s.Nombre)
+                .Select(s => new { s.IdSucursal, s.Nombre, s.Direccion })
+                .ToListAsync());
+
         // GET /api/catalog/empleados/{categoriaId}
         [HttpGet("empleados/{categoriaId}")]
         public async Task<IActionResult> GetEmpleadosPorCategoria(long categoriaId)

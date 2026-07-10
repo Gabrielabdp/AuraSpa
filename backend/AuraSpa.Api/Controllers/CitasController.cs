@@ -152,6 +152,21 @@ namespace AuraSpa.Api.Controllers
             return Ok(await q.OrderBy(c => c.FechaHora).ToListAsync());
         }
 
+        // GET /api/citas/disponibilidad?idEmpleado=&fecha=  — horas ocupadas de un especialista en una fecha
+        // Accesible para cualquier usuario autenticado (incluye Cliente agendando); no expone datos de otros clientes.
+        [HttpGet("disponibilidad")]
+        public async Task<IActionResult> GetDisponibilidad([FromQuery] long idEmpleado, [FromQuery] DateTime fecha)
+        {
+            var horasOcupadas = await _ctx.Citas
+                .Where(c => c.IdEmpleado == idEmpleado
+                         && c.FechaHora.Date == fecha.Date
+                         && c.Estado != "Cancelada" && c.Estado != "Rechazada")
+                .Select(c => c.FechaHora)
+                .ToListAsync();
+
+            return Ok(horasOcupadas.Select(h => h.ToString("HH:mm")));
+        }
+
         // GET /api/citas/mis-citas-empleado  (solo el propio Especialista)
         [HttpGet("mis-citas-empleado")]
         [Authorize(Roles = "Especialista")]

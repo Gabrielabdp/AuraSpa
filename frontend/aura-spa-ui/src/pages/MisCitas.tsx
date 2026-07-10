@@ -325,9 +325,6 @@ const MisCitas: React.FC = () => {
                         RD$ {cita.precioAcordado.toLocaleString('es-DO', { minimumFractionDigits: 2 })}
                       </p>
                     )}
-                    {cancelError[cita.idCita] && (
-                      <p style={{ color: '#c62828', fontSize: '0.82rem', marginTop: '8px', margin: 0 }}>{cancelError[cita.idCita]}</p>
-                    )}
                   </div>
                   <div style={{ display: 'flex', flexDirection: 'column', gap: '8px', alignItems: 'flex-end' }}>
                     {/* Comprobante solo para citas Confirmadas o Completadas */}
@@ -353,13 +350,20 @@ const MisCitas: React.FC = () => {
                       )
                     )}
                     {(cita.estado === 'Pendiente' || cita.estado === 'Confirmada') && (
-                      <button
-                        onClick={() => handleCancelar(cita.idCita)}
-                        disabled={cancelando === cita.idCita}
-                        style={{ padding: '8px 18px', borderRadius: '30px', border: '1px solid #ef4444', background: '#fef2f2', color: '#ef4444', fontWeight: '600', cursor: 'pointer', fontSize: '0.82rem' }}
-                      >
-                        {cancelando === cita.idCita ? <Loader2 size={14} className="animate-spin" /> : 'Cancelar cita'}
-                      </button>
+                      <>
+                        <button
+                          onClick={() => handleCancelar(cita.idCita)}
+                          disabled={cancelando === cita.idCita}
+                          style={{ padding: '8px 18px', borderRadius: '30px', border: '1px solid #ef4444', background: '#fef2f2', color: '#ef4444', fontWeight: '600', cursor: 'pointer', fontSize: '0.82rem' }}
+                        >
+                          {cancelando === cita.idCita ? <Loader2 size={14} className="animate-spin" /> : 'Cancelar cita'}
+                        </button>
+                        {cancelError[cita.idCita] && (
+                          <p style={{ color: '#c62828', fontSize: '0.82rem', margin: 0, textAlign: 'right', maxWidth: '220px' }}>
+                            {cancelError[cita.idCita]}
+                          </p>
+                        )}
+                      </>
                     )}
                   </div>
                 </div>
