@@ -54,8 +54,9 @@ const CarritoProductos: React.FC = () => {
     if (carrito.length === 0) return;
     setProcesando(true);
     try {
-      // En producción: POST /api/reservas con los productos y la sucursal
-      await new Promise(r => setTimeout(r, 1200)); // simulación
+      // Nota: aún no existe un backend de órdenes/reservas de productos;
+      // esta llamada solo registra los puntos de lealtad por el monto reservado.
+      await apiClient.post('/api/lealtad/reservar-productos', { montoTotal: total + itbis });
       // Guardar snapshot para el PDF antes de limpiar
       const snapData  = [...carrito];
       const snapTotal = carrito.reduce((a,p)=>a+p.precio*p.cantidad,0);

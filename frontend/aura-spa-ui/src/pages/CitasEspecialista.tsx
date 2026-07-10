@@ -50,8 +50,7 @@ const CitasEspecialista: React.FC = () => {
     setError('');
     try {
       const fecha = hoy.toISOString().split('T')[0];
-      // INC: cuando Gabriela implemente /api/citas/mis-citas-empleado usar ese endpoint
-      const res = await apiClient.get(`/api/citas/todas?fecha=${fecha}`);
+      const res = await apiClient.get(`/api/citas/mis-citas-empleado?fecha=${fecha}`);
       const citasMapeadas = res.data.map((c: any) => ({
         idCita: c.idCita,
         cliente: c.cliente ? `${c.cliente.nombres} ${c.cliente.apellidos}` : 'Sin cliente',

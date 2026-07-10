@@ -2,12 +2,13 @@ using AuraSpa.Api.Data;
 using Microsoft.AspNetCore.Authorization;
 using Microsoft.AspNetCore.Mvc;
 using Microsoft.EntityFrameworkCore;
+using System.Security.Claims;
 
 namespace AuraSpa.Api.Controllers
 {
     [Route("api/[controller]")]
     [ApiController]
-    [Authorize(Roles = "Admin,Cajero,Especialista")]
+    [Authorize]
     public class DashboardController : ControllerBase
     {
         private readonly ApplicationDbContext _ctx;
@@ -103,6 +104,7 @@ namespace AuraSpa.Api.Controllers
 
         // GET /api/dashboard/citas-hoy
         [HttpGet("citas-hoy")]
+        [Authorize(Roles = "Admin,Cajero,Especialista")]
         public async Task<IActionResult> CitasHoy()
         {
             var hoy = DateTime.Today;
@@ -121,6 +123,7 @@ namespace AuraSpa.Api.Controllers
 
         // GET /api/dashboard/citas-pendientes
         [HttpGet("citas-pendientes")]
+        [Authorize(Roles = "Admin,Cajero,Especialista")]
         public async Task<IActionResult> CitasPendientes()
         {
             var citas = await _ctx.Citas
@@ -141,6 +144,9 @@ namespace AuraSpa.Api.Controllers
         [Authorize]
         public async Task<IActionResult> GetNotificaciones(long usuarioId)
         {
+            var idUsuarioActual = long.Parse(User.FindFirstValue(ClaimTypes.NameIdentifier)!);
+            if (usuarioId != idUsuarioActual) return Forbid();
+
             var notifs = await _ctx.Notificaciones
                 .Where(n => n.IdUsuario == usuarioId)
                 .OrderByDescending(n => n.FechaEnvio).Take(20).ToListAsync();
@@ -151,8 +157,11 @@ namespace AuraSpa.Api.Controllers
         [Authorize]
         public async Task<IActionResult> MarcarLeida(long id)
         {
+            var idUsuarioActual = long.Parse(User.FindFirstValue(ClaimTypes.NameIdentifier)!);
             var n = await _ctx.Notificaciones.FindAsync(id);
             if (n == null) return NotFound();
+            if (n.IdUsuario != idUsuarioActual) return Forbid();
+
             n.Leida = true; n.FechaLectura = DateTime.Now;
             await _ctx.SaveChangesAsync();
             return Ok();

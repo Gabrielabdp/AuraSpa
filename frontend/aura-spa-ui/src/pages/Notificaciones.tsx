@@ -18,12 +18,17 @@ const Notificaciones: React.FC = () => {
   const { user } = useAuth();
   const [notificaciones, setNotificaciones] = useState<Notificacion[]>([]);
   const [loading, setLoading] = useState(true);
+  const [error, setError] = useState('');
 
   useEffect(() => {
     if (!user?.id) return;
+    setLoading(true);
+    setError('');
     apiClient.get(`/api/dashboard/notificaciones/${user.id}`).then(res => {
       setNotificaciones(res.data);
-    }).catch(() => {}).finally(() => setLoading(false));
+    }).catch(() => {
+      setError('No se pudieron cargar las notificaciones.');
+    }).finally(() => setLoading(false));
   }, [user]);
 
   const marcarLeida = async (id: number) => {
@@ -80,14 +85,20 @@ const Notificaciones: React.FC = () => {
 
       {loading && <div style={{ textAlign: 'center', padding: '60px' }}><Loader2 className="animate-spin" size={32} style={{ color: 'var(--aura-lavender)' }} /></div>}
 
-      {!loading && notificaciones.length === 0 && (
-        <div className="card-aura" style={{ padding: '60px', textAlign: 'center' }}>
-          <Bell size={40} style={{ color: '#ddd', marginBottom: '15px' }} />
-          <p style={{ color: 'var(--aura-gray)' }}>No tienes notificaciones todavía.</p>
+      {!loading && error && (
+        <div className="card-aura" style={{ padding: '40px', textAlign: 'center' }}>
+          <p style={{ color: '#c62828' }}>{error}</p>
         </div>
       )}
 
-      {!loading && (
+      {!loading && !error && notificaciones.length === 0 && (
+        <div className="card-aura" style={{ padding: '60px', textAlign: 'center' }}>
+          <Bell size={40} style={{ color: '#ddd', marginBottom: '15px' }} />
+          <p style={{ color: 'var(--aura-gray)' }}>No tienes notificaciones nuevas.</p>
+        </div>
+      )}
+
+      {!loading && !error && (
         <div style={{ display: 'flex', flexDirection: 'column', gap: '12px' }}>
           {notificaciones.map(n => (
             <div key={n.idNotificacion} onClick={() => marcarLeida(n.idNotificacion)} className="card-aura" style={{

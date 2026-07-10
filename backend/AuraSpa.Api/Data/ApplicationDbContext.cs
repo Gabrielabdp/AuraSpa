@@ -23,6 +23,7 @@ namespace AuraSpa.Api.Data
         public DbSet<Cabina>           Cabinas            { get; set; }
         // Citas
         public DbSet<Cita>             Citas              { get; set; }
+        public DbSet<Resena>           Resenas            { get; set; }
         // Ventas y caja
         public DbSet<SesionCaja>       SesionesCaja       { get; set; }
         public DbSet<Venta>            Ventas             { get; set; }

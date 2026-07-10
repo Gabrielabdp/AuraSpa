@@ -11,6 +11,7 @@ const Verificacion2FA: React.FC = () => {
   const [loading, setLoading] = useState(false);
   const [error,   setError]   = useState('');
   const [reenvios, setReenvios] = useState(0);
+  const [reenviado, setReenviado] = useState(false);
 
   // Recuperar los datos guardados temporalmente en sesión
   const tokenTemp  = sessionStorage.getItem('aura_2fa_token');
@@ -25,7 +26,7 @@ const Verificacion2FA: React.FC = () => {
     // En producción: POST /api/auth/verificar-2fa { codigo, token: tokenTemp }
     setTimeout(() => {
       setLoading(false);
-      if (codigo === '123456' || codigo.length === 6) {
+      if (codigo === '123456') {
         if (tokenTemp && userTemp) {
           const usuario = JSON.parse(userTemp);
           sessionStorage.removeItem('aura_2fa_token');
@@ -47,7 +48,8 @@ const Verificacion2FA: React.FC = () => {
     if (reenvios >= 3) { setError('Límite de reenvíos alcanzado. Espera 10 minutos.'); return; }
     setReenvios(r => r + 1);
     setError('');
-    alert('Código reenviado a tu correo o aplicación de autenticación. (Simulación: usa 123456)');
+    setReenviado(true);
+    setTimeout(() => setReenviado(false), 3000);
   };
 
   // Manejar input: solo 6 dígitos
@@ -123,6 +125,12 @@ const Verificacion2FA: React.FC = () => {
         <button onClick={reenviarCodigo} style={{ marginTop:'20px', background:'none', border:'none', color:'var(--aura-lavender)', cursor:'pointer', fontSize:'0.88rem', display:'flex', alignItems:'center', gap:'6px', margin:'20px auto 0' }}>
           <RefreshCw size={15}/> Reenviar código
         </button>
+
+        {reenviado && (
+          <div style={{ background:'#f0ecff', color:'var(--aura-lavender)', borderRadius:'14px', padding:'10px 16px', marginTop:'16px', fontSize:'0.85rem', fontWeight:'500' }}>
+            📨 Código reenviado. Usa 123456 para continuar (modo demo).
+          </div>
+        )}
 
         <p style={{ marginTop:'20px', fontSize:'0.82rem', color:'#aaa' }}>
           ¿Problemas?{' '}

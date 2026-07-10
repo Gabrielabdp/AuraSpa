@@ -17,6 +17,7 @@ const Registro: React.FC = () => {
   const [cedulaError, setCedulaError] = useState('');
   const [password, setPassword] = useState('');
   const [confirmar, setConfirmar] = useState('');
+  const [codigoReferido, setCodigoReferido] = useState('');
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState('');
   const [passwordError, setPasswordError] = useState('');
@@ -55,6 +56,7 @@ const Registro: React.FC = () => {
         numeroDocumento: cedula,
         tipoDocumento: tipoDoc,
         nombrePerfil: 'Cliente',
+        codigoReferido: codigoReferido.trim() || undefined,
       });
       const { token, usuario } = response.data;
       login(token, usuario);
@@ -174,9 +176,22 @@ const Registro: React.FC = () => {
             {passwordError && <p style={{ color: '#c62828', fontSize: '0.8rem', margin: '6px 0 0' }}>{passwordError}</p>}
           </div>
 
-          <div style={{ marginBottom: '30px' }}>
+          <div style={{ marginBottom: '20px' }}>
             <label style={{ display: 'block', marginBottom: '8px', color: 'var(--aura-gray)', fontWeight: '500', fontSize: '0.9rem' }}>Confirmar contraseña</label>
             <input type="password" placeholder="Repite tu contraseña" value={confirmar} onChange={(e) => setConfirmar(e.target.value)} required style={inputStyle} />
+          </div>
+
+          <div style={{ marginBottom: '30px' }}>
+            <label style={{ display: 'block', marginBottom: '8px', color: 'var(--aura-gray)', fontWeight: '500', fontSize: '0.9rem' }}>
+              ¿Tienes un código de referido? (opcional)
+            </label>
+            <input
+              type="text"
+              placeholder="Ej: AURA00001"
+              value={codigoReferido}
+              onChange={(e) => setCodigoReferido(e.target.value.toUpperCase())}
+              style={inputStyle}
+            />
           </div>
 
           <button type="submit" className="btn-AuraSpa" style={{ width: '100%', padding: '15px', fontSize: '1.1rem' }} disabled={loading}>

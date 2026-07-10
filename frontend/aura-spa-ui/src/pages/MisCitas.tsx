@@ -37,6 +37,10 @@ const MisCitas: React.FC = () => {
   const [resenaModal, setResenaModal] = useState<number | null>(null);
   const [calificacion, setCalificacion] = useState(0);
   const [comentario, setComentario] = useState('');
+  const [resenaError, setResenaError] = useState('');
+  const [resenaEnviando, setResenaEnviando] = useState(false);
+  const [resenaExito, setResenaExito] = useState(false);
+  const [citasConResena, setCitasConResena] = useState<number[]>([]);
 
   useEffect(() => {
     fetchCitas();
@@ -69,11 +73,25 @@ const MisCitas: React.FC = () => {
     }
   };
 
-  const handleResena = (_citaId: number) => {
-    setResenaModal(null);
-    setCalificacion(0);
-    setComentario('');
-    alert('Reseña enviada. Gracias por tu opinión. (Endpoint /api/resenas pendiente en el Core)');
+  const handleResena = async (citaId: number) => {
+    setResenaEnviando(true);
+    setResenaError('');
+    try {
+      await apiClient.post('/api/resenas', { idCita: citaId, calificacion, comentario });
+      setCitasConResena(prev => [...prev, citaId]);
+      setResenaExito(true);
+      setTimeout(() => {
+        setResenaModal(null);
+        setCalificacion(0);
+        setComentario('');
+        setResenaExito(false);
+      }, 2000);
+    } catch (err: any) {
+      const msg = err.response?.data;
+      setResenaError(typeof msg === 'string' ? msg : 'No se pudo enviar la reseña.');
+    } finally {
+      setResenaEnviando(false);
+    }
   };
 
   const descargarComprobante = (cita: Cita) => {
@@ -323,10 +341,16 @@ const MisCitas: React.FC = () => {
                       </button>
                     )}
                     {cita.estado === 'Completada' && (
-                      <button onClick={() => setResenaModal(cita.idCita)} style={{
-                        padding: '8px 18px', borderRadius: '30px', border: '1px solid var(--aura-lavender)',
-                        background: '#f0ecff', color: 'var(--aura-lavender)', fontWeight: '600', cursor: 'pointer', fontSize: '0.82rem'
-                      }}>✍️ Dejar reseña</button>
+                      citasConResena.includes(cita.idCita) ? (
+                        <span style={{ padding: '8px 18px', borderRadius: '30px', color: '#22c55e', fontWeight: '600', fontSize: '0.82rem' }}>
+                          ✓ Reseña enviada
+                        </span>
+                      ) : (
+                        <button onClick={() => { setResenaModal(cita.idCita); setResenaError(''); }} style={{
+                          padding: '8px 18px', borderRadius: '30px', border: '1px solid var(--aura-lavender)',
+                          background: '#f0ecff', color: 'var(--aura-lavender)', fontWeight: '600', cursor: 'pointer', fontSize: '0.82rem'
+                        }}>✍️ Dejar reseña</button>
+                      )
                     )}
                     {(cita.estado === 'Pendiente' || cita.estado === 'Confirmada') && (
                       <button
@@ -348,23 +372,34 @@ const MisCitas: React.FC = () => {
       {resenaModal !== null && (
         <div style={{ position: 'fixed', inset: 0, background: 'rgba(0,0,0,0.4)', display: 'flex', alignItems: 'center', justifyContent: 'center', zIndex: 1000, padding: '20px' }}>
           <div className="card-aura" style={{ width: '100%', maxWidth: '460px', padding: '40px', borderRadius: '30px' }}>
-            <h3 style={{ color: 'var(--aura-navy)', fontWeight: 'bold', marginBottom: '8px', textAlign: 'center' }}>Dejar reseña</h3>
-            <p style={{ color: 'var(--aura-gray)', textAlign: 'center', fontSize: '0.9rem', marginBottom: '25px' }}>
-              {citas.find(c => c.idCita === resenaModal)?.servicio}
-            </p>
-            <div style={{ display: 'flex', justifyContent: 'center', gap: '8px', marginBottom: '20px' }}>
-              {[1,2,3,4,5].map(s => (
-                <Star key={s} size={36} fill={s <= calificacion ? '#fbbf24' : 'none'} color={s <= calificacion ? '#fbbf24' : '#ddd'}
-                  style={{ cursor: 'pointer' }} onClick={() => setCalificacion(s)} />
-              ))}
-            </div>
-            <textarea value={comentario} onChange={(e) => setComentario(e.target.value)}
-              placeholder="Cuéntanos tu experiencia..." rows={3}
-              style={{ width: '100%', padding: '12px 15px', borderRadius: '15px', border: '1px solid #ddd', outline: 'none', background: '#fcfcfc', fontSize: '0.9rem', resize: 'none', marginBottom: '20px' }} />
-            <div style={{ display: 'flex', gap: '10px' }}>
-              <button onClick={() => handleResena(resenaModal!)} className="btn-AuraSpa" style={{ flex: 1, padding: '12px' }} disabled={calificacion === 0}>Publicar reseña</button>
-              <button onClick={() => { setResenaModal(null); setCalificacion(0); setComentario(''); }} className="btn-outline-aura" style={{ flex: 1, padding: '12px' }}>Cancelar</button>
-            </div>
+            {resenaExito ? (
+              <div style={{ background: '#f0fdf4', color: '#22c55e', borderRadius: '14px', padding: '18px', textAlign: 'center', fontWeight: '600', fontSize: '0.95rem' }}>
+                ✅ ¡Gracias por tu reseña! Estará visible próximamente.
+              </div>
+            ) : (
+              <>
+                <h3 style={{ color: 'var(--aura-navy)', fontWeight: 'bold', marginBottom: '8px', textAlign: 'center' }}>Dejar reseña</h3>
+                <p style={{ color: 'var(--aura-gray)', textAlign: 'center', fontSize: '0.9rem', marginBottom: '25px' }}>
+                  {citas.find(c => c.idCita === resenaModal)?.servicio}
+                </p>
+                <div style={{ display: 'flex', justifyContent: 'center', gap: '8px', marginBottom: '20px' }}>
+                  {[1,2,3,4,5].map(s => (
+                    <Star key={s} size={36} fill={s <= calificacion ? '#fbbf24' : 'none'} color={s <= calificacion ? '#fbbf24' : '#ddd'}
+                      style={{ cursor: 'pointer' }} onClick={() => setCalificacion(s)} />
+                  ))}
+                </div>
+                <textarea value={comentario} onChange={(e) => setComentario(e.target.value)}
+                  placeholder="Cuéntanos tu experiencia..." rows={3}
+                  style={{ width: '100%', padding: '12px 15px', borderRadius: '15px', border: '1px solid #ddd', outline: 'none', background: '#fcfcfc', fontSize: '0.9rem', resize: 'none', marginBottom: '20px' }} />
+                {resenaError && <p style={{ color: '#c62828', fontSize: '0.82rem', marginBottom: '15px', textAlign: 'center' }}>{resenaError}</p>}
+                <div style={{ display: 'flex', gap: '10px' }}>
+                  <button onClick={() => handleResena(resenaModal!)} className="btn-AuraSpa" style={{ flex: 1, padding: '12px' }} disabled={calificacion === 0 || resenaEnviando}>
+                    {resenaEnviando ? <Loader2 size={16} className="animate-spin" style={{ margin: '0 auto' }} /> : 'Publicar reseña'}
+                  </button>
+                  <button onClick={() => { setResenaModal(null); setCalificacion(0); setComentario(''); setResenaError(''); }} className="btn-outline-aura" style={{ flex: 1, padding: '12px' }}>Cancelar</button>
+                </div>
+              </>
+            )}
           </div>
         </div>
       )}

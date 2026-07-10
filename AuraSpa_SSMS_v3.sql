@@ -113,25 +113,34 @@ GO
 -- ============================================================
 
 CREATE TABLE Cliente (
-    id_cliente        BIGINT        NOT NULL IDENTITY(1,1),
-    id_tipo_doc       BIGINT        NOT NULL,
-    numero_documento  VARCHAR(20)   NOT NULL,
-    id_pais_doc       BIGINT        NULL,
-    nombres           VARCHAR(80)   NOT NULL,
-    apellidos         VARCHAR(80)   NOT NULL,
-    fecha_nacimiento  DATE          NULL,
-    genero            VARCHAR(10)   NULL,
-    email             VARCHAR(150)  NULL,
-    telefono          VARCHAR(20)   NULL,
-    telefono_alt      VARCHAR(20)   NULL,
-    direccion         VARCHAR(200)  NULL,
-    activo            BIT           NOT NULL DEFAULT 1,
-    fecha_registro    DATETIME      NOT NULL DEFAULT GETDATE(),
+    id_cliente            BIGINT        NOT NULL IDENTITY(1,1),
+    id_tipo_doc           BIGINT        NOT NULL,
+    numero_documento      VARCHAR(20)   NOT NULL,
+    id_pais_doc           BIGINT        NULL,
+    nombres               VARCHAR(80)   NOT NULL,
+    apellidos             VARCHAR(80)   NOT NULL,
+    fecha_nacimiento      DATE          NULL,
+    genero                VARCHAR(10)   NULL,
+    email                 VARCHAR(150)  NULL,
+    telefono              VARCHAR(20)   NULL,
+    telefono_alt          VARCHAR(20)   NULL,
+    direccion             VARCHAR(200)  NULL,
+    activo                BIT           NOT NULL DEFAULT 1,
+    fecha_registro        DATETIME      NOT NULL DEFAULT GETDATE(),
+    puntos                INT           NOT NULL DEFAULT 0,
+    codigo_referido       VARCHAR(10)   NULL,
+    id_cliente_referidor  BIGINT        NULL,
     CONSTRAINT pk_cliente     PRIMARY KEY (id_cliente),
     CONSTRAINT uq_cliente_doc UNIQUE (id_tipo_doc, numero_documento),
-    CONSTRAINT fk_cliente_tipodoc FOREIGN KEY (id_tipo_doc) REFERENCES TipoDocumento(id_tipo_doc) ON UPDATE NO ACTION ON DELETE NO ACTION,
-    CONSTRAINT fk_cliente_pais    FOREIGN KEY (id_pais_doc) REFERENCES Pais(id_pais)              ON UPDATE NO ACTION ON DELETE NO ACTION
+    CONSTRAINT fk_cliente_tipodoc   FOREIGN KEY (id_tipo_doc)          REFERENCES TipoDocumento(id_tipo_doc) ON UPDATE NO ACTION ON DELETE NO ACTION,
+    CONSTRAINT fk_cliente_pais      FOREIGN KEY (id_pais_doc)          REFERENCES Pais(id_pais)              ON UPDATE NO ACTION ON DELETE NO ACTION,
+    CONSTRAINT fk_cliente_referidor FOREIGN KEY (id_cliente_referidor) REFERENCES Cliente(id_cliente)        ON UPDATE NO ACTION ON DELETE NO ACTION
 );
+GO
+
+SET QUOTED_IDENTIFIER ON;
+GO
+CREATE UNIQUE INDEX uq_cliente_codigo_referido ON Cliente(codigo_referido) WHERE codigo_referido IS NOT NULL;
 GO
 
 CREATE TABLE Empleado (
@@ -387,6 +396,22 @@ GO
 CREATE UNIQUE INDEX uq_cita_horario_especialista
     ON Cita (id_empleado, fecha_hora)
     WHERE id_empleado IS NOT NULL;
+GO
+
+CREATE TABLE Resena (
+    id_resena     BIGINT       NOT NULL IDENTITY(1,1),
+    id_cliente    BIGINT       NOT NULL,
+    id_cita       BIGINT       NOT NULL,
+    calificacion  TINYINT      NOT NULL,
+    comentario    VARCHAR(500) NULL,
+    fecha         DATETIME     NOT NULL DEFAULT GETDATE(),
+    visible       BIT          NOT NULL DEFAULT 1,
+    CONSTRAINT pk_resena         PRIMARY KEY (id_resena),
+    CONSTRAINT uq_resena_cita    UNIQUE (id_cita),
+    CONSTRAINT chk_resena_calif  CHECK (calificacion BETWEEN 1 AND 5),
+    CONSTRAINT fk_resena_cliente FOREIGN KEY (id_cliente) REFERENCES Cliente(id_cliente) ON UPDATE NO ACTION ON DELETE NO ACTION,
+    CONSTRAINT fk_resena_cita    FOREIGN KEY (id_cita)    REFERENCES Cita(id_cita)       ON UPDATE NO ACTION ON DELETE NO ACTION
+);
 GO
 
 CREATE TABLE ConsentimientoInformado (

@@ -1,5 +1,6 @@
 using AuraSpa.Api.Data;
 using AuraSpa.Api.DTOs;
+using AuraSpa.Api.Helpers;
 using AuraSpa.Api.Models;
 using Microsoft.AspNetCore.Authorization;
 using Microsoft.AspNetCore.Mvc;
@@ -151,6 +152,27 @@ namespace AuraSpa.Api.Controllers
             return Ok(await q.OrderBy(c => c.FechaHora).ToListAsync());
         }
 
+        // GET /api/citas/mis-citas-empleado  (solo el propio Especialista)
+        [HttpGet("mis-citas-empleado")]
+        [Authorize(Roles = "Especialista")]
+        public async Task<IActionResult> GetMisCitasEmpleado([FromQuery] DateTime? fecha)
+        {
+            var idUsuario = long.Parse(User.FindFirstValue(ClaimTypes.NameIdentifier)!);
+            var usuario   = await _ctx.Usuarios.FindAsync(idUsuario);
+            if (usuario?.IdEmpleado == null) return Ok(new List<object>());
+
+            var q = _ctx.Citas
+                .Include(c => c.Cliente)
+                .Include(c => c.Item).ThenInclude(i => i!.Categoria)
+                .Include(c => c.Empleado)
+                .Where(c => c.IdEmpleado == usuario.IdEmpleado.Value)
+                .AsQueryable();
+
+            if (fecha.HasValue) q = q.Where(c => c.FechaHora.Date == fecha.Value.Date);
+
+            return Ok(await q.OrderBy(c => c.FechaHora).ToListAsync());
+        }
+
         // PUT /api/citas/{id}/estado  (solo Admin)
         [HttpPut("{id}/estado")]
         [Authorize(Roles = "Admin,Cajero,Especialista")]
@@ -163,6 +185,12 @@ namespace AuraSpa.Api.Controllers
             // Normalizar: "Confirmada" = "Aprobada" para compatibilidad entre capas
             if (nuevoEstado == "Confirmada") nuevoEstado = "Aprobada";
             if (!estadosValidos.Contains(nuevoEstado)) return BadRequest("Estado inválido.");
+
+            if (nuevoEstado == "Completada" && cita.Estado != "Completada")
+            {
+                var cliente = await _ctx.Clientes.FindAsync(cita.IdCliente);
+                if (cliente != null) cliente.Puntos += PuntosCalculator.PorMonto(cita.PrecioAcordado ?? 0);
+            }
 
             cita.Estado = nuevoEstado;
             await _ctx.SaveChangesAsync();

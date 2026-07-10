@@ -15,6 +15,7 @@ namespace AuraSpa.Api.DTOs
         public string  NombrePerfil    { get; set; } = "Cliente";
         public string? NumeroDocumento { get; set; }
         public string? Telefono        { get; set; }
+        public string? CodigoReferido  { get; set; }
     }
 
     public class CrearCitaDto

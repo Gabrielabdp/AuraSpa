@@ -98,7 +98,7 @@ const Catalog: React.FC = () => {
         <div>
           <h2 style={{ color: 'var(--aura-navy)', fontWeight: 'bold', margin: 0 }}>Experiencias Aura</h2>
           <p style={{ color: '#666', fontSize: '0.9rem', margin: 0 }}>
-            {user ? <>Bienvenida, <strong>{user.nombre}</strong> — Sucursal Principal</> : 'Encuentra el tratamiento ideal en Sucursal Principal.'}
+            {user ? <>Bienvenido/a, <strong>{user.nombre}</strong> — Sucursal Principal</> : 'Encuentra el tratamiento ideal en Sucursal Principal.'}
           </p>
         </div>
         <div style={{ position: 'relative', flexGrow: 1, maxWidth: '400px' }}>

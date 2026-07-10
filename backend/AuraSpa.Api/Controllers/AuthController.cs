@@ -3,6 +3,7 @@ using System.Security.Claims;
 using System.Text;
 using AuraSpa.Api.Data;
 using AuraSpa.Api.DTOs;
+using AuraSpa.Api.Helpers;
 using AuraSpa.Api.Models;
 using Microsoft.AspNetCore.Authorization;
 using Microsoft.AspNetCore.Mvc;
@@ -43,6 +44,8 @@ namespace AuraSpa.Api.Controllers
                 return Unauthorized("Credenciales inválidas.");
             }
 
+            var primerLogin = usuario.UltimoAcceso == null;
+
             usuario.IntentosFallidos = 0;
             usuario.BloqueadoHasta  = null;
             usuario.UltimoAcceso    = DateTime.Now;
@@ -51,6 +54,7 @@ namespace AuraSpa.Api.Controllers
             return Ok(new
             {
                 token   = GenerateJwt(usuario),
+                primerLogin,
                 usuario = new
                 {
                     id       = usuario.IdUsuario,
@@ -86,16 +90,29 @@ namespace AuraSpa.Api.Controllers
                     return BadRequest("Esta cédula ya está registrada en el sistema.");
             }
 
+            Cliente? referidor = null;
+            if (!string.IsNullOrWhiteSpace(dto.CodigoReferido))
+            {
+                var codigoBuscado = dto.CodigoReferido.Trim().ToUpper();
+                referidor = await _ctx.Clientes.FirstOrDefaultAsync(c => c.CodigoReferido == codigoBuscado);
+            }
+
             var cliente = new Cliente
             {
-                IdTipoDoc       = tipoCed.IdTipoDoc,
-                NumeroDocumento = numeroDoc,
-                Nombres         = dto.Nombre,
-                Apellidos       = dto.Apellido,
-                Email           = dto.Email,
-                Telefono        = dto.Telefono
+                IdTipoDoc          = tipoCed.IdTipoDoc,
+                NumeroDocumento    = numeroDoc,
+                Nombres            = dto.Nombre,
+                Apellidos          = dto.Apellido,
+                Email              = dto.Email,
+                Telefono           = dto.Telefono,
+                Puntos             = PuntosCalculator.PuntosRegistro,
+                CodigoReferido     = await GenerarCodigoReferidoUnicoAsync(),
+                IdClienteReferidor = referidor?.IdCliente
             };
             _ctx.Clientes.Add(cliente);
+
+            if (referidor != null) referidor.Puntos += PuntosCalculator.PuntosReferido;
+
             await _ctx.SaveChangesAsync();
 
             var usuario = new Usuario
@@ -148,6 +165,26 @@ namespace AuraSpa.Api.Controllers
             return Ok(new { message = "Datos actualizados." });
         }
 
+        // PUT /api/auth/cambiar-password — cambiar la propia contraseña
+        [HttpPut("cambiar-password")]
+        [Authorize]
+        public async Task<IActionResult> CambiarPassword([FromBody] CambiarPasswordDto dto)
+        {
+            var idUsuario = long.Parse(User.FindFirstValue(ClaimTypes.NameIdentifier)!);
+            var usuario   = await _ctx.Usuarios.FindAsync(idUsuario);
+            if (usuario == null) return NotFound();
+
+            if (!BCrypt.Net.BCrypt.Verify(dto.PasswordActual, usuario.ContrasenaHash))
+                return BadRequest("La contraseña actual es incorrecta.");
+
+            if (string.IsNullOrEmpty(dto.PasswordNueva) || dto.PasswordNueva.Length < 8)
+                return BadRequest("La nueva contraseña debe tener al menos 8 caracteres.");
+
+            usuario.ContrasenaHash = BCrypt.Net.BCrypt.HashPassword(dto.PasswordNueva);
+            await _ctx.SaveChangesAsync();
+            return Ok(new { message = "Contraseña actualizada correctamente." });
+        }
+
 
         // GET /api/auth/clientes — lista de clientes (Admin/Cajero)
         [HttpGet("clientes")]
@@ -165,6 +202,18 @@ namespace AuraSpa.Api.Controllers
         }
 
 
+
+        private async Task<string> GenerarCodigoReferidoUnicoAsync()
+        {
+            const string chars = "ABCDEFGHJKLMNPQRSTUVWXYZ23456789"; // sin caracteres ambiguos (0/O, 1/I)
+            var rng = new Random();
+            string codigo;
+            do
+            {
+                codigo = new string(Enumerable.Range(0, 6).Select(_ => chars[rng.Next(chars.Length)]).ToArray());
+            } while (await _ctx.Clientes.AnyAsync(c => c.CodigoReferido == codigo));
+            return codigo;
+        }
 
         private string GenerateJwt(Usuario usuario)
         {

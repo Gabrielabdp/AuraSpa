@@ -23,7 +23,16 @@ const Login: React.FC = () => {
     setLoading(true); setError('');
     try {
       const { data } = await apiClient.post('/api/auth/login', { email, password });
-      const { token, usuario } = data;
+      const { token, usuario, primerLogin } = data;
+
+      if (primerLogin) {
+        // Sesión aún no establecida: se guarda temporalmente hasta pasar el 2FA
+        sessionStorage.setItem('aura_2fa_token', token);
+        sessionStorage.setItem('aura_2fa_usuario', JSON.stringify(usuario));
+        navigate('/verificacion-2fa');
+        return;
+      }
+
       // Guardar que ya inició sesión en esta sesión del navegador
       sessionStorage.setItem('aura_cerro_sesion', '0');
       login(token, usuario);

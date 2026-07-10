@@ -37,10 +37,7 @@ const Clientes: React.FC = () => {
     setLoading(true);
     setError('');
     try {
-      // Usamos el endpoint de auth para buscar — el Core no tiene un GET /api/clientes público
-      // El endpoint correcto sería /api/admin/clientes cuando el Core lo exponga
-      // Por ahora cargamos desde los usuarios registrados
-      const res = await apiClient.get('/api/auth/clientes').catch(() => ({ data: [] }));
+      const res = await apiClient.get('/api/auth/clientes');
       setClientes(res.data);
     } catch {
       setError('No se pudo cargar la lista de clientes.');
@@ -105,7 +102,7 @@ const Clientes: React.FC = () => {
       {loading && <div style={{ textAlign: 'center', padding: '60px' }}><Loader2 className="animate-spin" size={32} style={{ color: 'var(--aura-lavender)' }} /></div>}
       {error && (
         <div style={{ padding: '20px', background: '#fff9e6', borderRadius: '15px', color: '#855', marginBottom: '20px', textAlign: 'center', fontSize: '0.9rem' }}>
-          {error} — <em>Nota: este módulo requiere un endpoint GET /api/admin/clientes en el Core.</em>
+          {error}
         </div>
       )}
 

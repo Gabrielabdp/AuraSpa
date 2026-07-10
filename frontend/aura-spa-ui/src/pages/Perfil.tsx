@@ -56,13 +56,13 @@ const Perfil: React.FC = () => {
     if (nueva !== confirmar) { setPassError('Las contraseñas no coinciden.'); return; }
     setPassError(''); setLoadingPass(true);
     try {
-      await apiClient.post('/api/auth/cambiar-contrasena', { contrasenaActual: actual, nuevaContrasena: nueva });
+      await apiClient.put('/api/auth/cambiar-password', { passwordActual: actual, passwordNueva: nueva });
       setPassOk(true);
       setActual(''); setNueva(''); setConfirmar('');
       setTimeout(() => setPassOk(false), 4000);
     } catch (err: any) {
       const msg = err.response?.data;
-      setPassError(typeof msg === 'string' ? msg : 'Contraseña actual incorrecta.');
+      setPassError(typeof msg === 'string' ? msg : 'No se pudo actualizar la contraseña. Intenta de nuevo.');
     } finally { setLoadingPass(false); }
   };
 

@@ -1,5 +1,6 @@
 using AuraSpa.Api.Data;
 using AuraSpa.Api.DTOs;
+using AuraSpa.Api.Helpers;
 using AuraSpa.Api.Models;
 using Microsoft.AspNetCore.Authorization;
 using Microsoft.AspNetCore.Mvc;
@@ -111,6 +112,12 @@ namespace AuraSpa.Api.Controllers
             };
 
             _ctx.Ventas.Add(venta);
+
+            if (venta.IdCliente.HasValue)
+            {
+                var cliente = await _ctx.Clientes.FindAsync(venta.IdCliente.Value);
+                if (cliente != null) cliente.Puntos += PuntosCalculator.PorMonto(venta.Total);
+            }
 
             // Descontar stock de productos
             foreach (var d in dto.Detalles)

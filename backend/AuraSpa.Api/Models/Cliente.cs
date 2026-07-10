@@ -19,6 +19,9 @@ namespace AuraSpa.Api.Models
         [Column("direccion")] public string? Direccion { get; set; }
         [Column("activo")] public bool Activo { get; set; } = true;
         [Column("fecha_registro")] public DateTime FechaRegistro { get; set; } = DateTime.Now;
+        [Column("puntos")] public int Puntos { get; set; } = 0;
+        [Column("codigo_referido")] public string? CodigoReferido { get; set; }
+        [Column("id_cliente_referidor")] public long? IdClienteReferidor { get; set; }
         // Navegacion
         [ForeignKey("IdTipoDoc")] public TipoDocumento? TipoDocumento { get; set; }
         [ForeignKey("IdPaisDoc")] public Pais? Pais { get; set; }
