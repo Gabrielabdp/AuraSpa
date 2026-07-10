@@ -5,6 +5,7 @@ using AuraSpa.Api.Models;
 using Microsoft.AspNetCore.Authorization;
 using Microsoft.AspNetCore.Mvc;
 using Microsoft.EntityFrameworkCore;
+using System.Security.Claims;
 
 namespace AuraSpa.Api.Controllers
 {
@@ -70,6 +71,11 @@ namespace AuraSpa.Api.Controllers
             if (dto.Detalles == null || dto.Detalles.Count == 0)
                 return BadRequest("La venta debe tener al menos un ítem.");
 
+            if (dto.CondicionPago == "Credito" && !dto.IdCliente.HasValue)
+                return BadRequest("Las ventas a crédito requieren un cliente identificado.");
+
+            var idUsuario = long.Parse(User.FindFirstValue(ClaimTypes.NameIdentifier)!);
+
             // Calcular montos
             decimal subtotal = 0;
             var detalles = new List<VentaDetalle>();
@@ -99,6 +105,7 @@ namespace AuraSpa.Api.Controllers
             {
                 NumeroFactura = numFactura,
                 IdCliente     = dto.IdCliente,
+                IdUsuario     = idUsuario,
                 IdSesionCaja  = dto.IdSesionCaja,
                 IdMetodoPago  = dto.IdMetodoPago,
                 CondicionPago = dto.CondicionPago,
@@ -119,18 +126,22 @@ namespace AuraSpa.Api.Controllers
                 if (cliente != null) cliente.Puntos += PuntosCalculator.PorMonto(venta.Total);
             }
 
-            // Descontar stock de productos
-            foreach (var d in dto.Detalles)
+            await _ctx.SaveChangesAsync();
+
+            if (dto.CondicionPago == "Credito")
             {
-                var item = await _ctx.ItemsCatalogo.FindAsync(d.IdItem);
-                if (item?.Tipo == "Producto")
+                _ctx.CuentasPorCobrar.Add(new CuentaPorCobrar
                 {
-                    // El stock se maneja en ItemCatalogoSucursal, ajustamos via SP si existe
-                    // Por ahora solo registramos la venta
-                }
+                    IdVenta          = venta.IdVenta,
+                    IdCliente        = venta.IdCliente!.Value,
+                    MontoOriginal    = venta.Total,
+                    MontoAbonado     = 0,
+                    FechaVencimiento = DateTime.Now.AddDays(15),
+                    Estado           = "Pendiente"
+                });
+                await _ctx.SaveChangesAsync();
             }
 
-            await _ctx.SaveChangesAsync();
             return Ok(new { venta.IdVenta, venta.NumeroFactura, venta.Total, venta.Itbis, venta.Subtotal });
         }
 
@@ -139,11 +150,102 @@ namespace AuraSpa.Api.Controllers
         public async Task<IActionResult> GetVentasPorSesion(long sesionId)
         {
             var ventas = await _ctx.Ventas
-                .Include(v => v.Detalles).ThenInclude(d => d.Item)
                 .Where(v => v.IdSesionCaja == sesionId)
                 .OrderByDescending(v => v.Fecha)
+                .Select(v => new
+                {
+                    v.IdVenta,
+                    v.NumeroFactura,
+                    v.IdCliente,
+                    v.IdMetodoPago,
+                    v.Fecha,
+                    v.Subtotal,
+                    v.Itbis,
+                    v.Total,
+                    v.CondicionPago,
+                    v.Estado,
+                    Detalles = v.Detalles.Select(d => new
+                    {
+                        d.IdDetalle,
+                        d.IdItem,
+                        Producto = d.Item != null ? d.Item.Nombre : "",
+                        d.Cantidad,
+                        d.PrecioUnitario,
+                        d.Subtotal
+                    })
+                })
                 .ToListAsync();
             return Ok(ventas);
+        }
+
+        // GET /api/caja/movimientos?desde=&hasta=  (por defecto, ventas del día actual)
+        [HttpGet("movimientos")]
+        public async Task<IActionResult> GetMovimientos([FromQuery] DateTime? desde, [FromQuery] DateTime? hasta)
+        {
+            var inicio = (desde ?? DateTime.Today).Date;
+            var fin    = (hasta ?? DateTime.Today).Date.AddDays(1);
+
+            var movimientos = await _ctx.Ventas
+                .Include(v => v.Usuario)
+                .Where(v => v.Fecha >= inicio && v.Fecha < fin)
+                .OrderByDescending(v => v.Fecha)
+                .Select(v => new
+                {
+                    id            = v.IdVenta,
+                    concepto      = "Venta #" + v.NumeroFactura,
+                    fecha         = v.Fecha,
+                    tipo          = "Ingreso",
+                    condicionPago = v.CondicionPago,
+                    usuario       = v.Usuario != null ? v.Usuario.Nombre + " " + v.Usuario.Apellido : "—",
+                    monto         = v.Total,
+                    estado        = v.Estado
+                })
+                .ToListAsync();
+
+            return Ok(movimientos);
+        }
+
+        // GET /api/caja/cxc — cuentas por cobrar pendientes o parciales
+        [HttpGet("cxc")]
+        public async Task<IActionResult> GetCxc()
+        {
+            var cxc = await _ctx.CuentasPorCobrar
+                .Include(c => c.Venta)
+                .Include(c => c.Cliente)
+                .Where(c => c.Estado == "Pendiente" || c.Estado == "Parcial")
+                .OrderBy(c => c.FechaVencimiento)
+                .Select(c => new
+                {
+                    id               = c.IdCxc,
+                    ventaId          = c.Venta != null ? c.Venta.NumeroFactura : "",
+                    clienteNombre    = c.Cliente != null ? c.Cliente.Nombres + " " + c.Cliente.Apellidos : "Cliente",
+                    montoTotal       = c.MontoOriginal,
+                    montoPagado      = c.MontoAbonado,
+                    saldoPendiente   = c.MontoOriginal - c.MontoAbonado,
+                    fechaVencimiento = c.FechaVencimiento,
+                    estado           = c.Estado
+                })
+                .ToListAsync();
+
+            return Ok(cxc);
+        }
+
+        // POST /api/caja/cxc/{id}/abono
+        [HttpPost("cxc/{id}/abono")]
+        public async Task<IActionResult> RegistrarAbono(long id, [FromBody] RegistrarAbonoDto dto)
+        {
+            var cxc = await _ctx.CuentasPorCobrar.FindAsync(id);
+            if (cxc == null) return NotFound("Cuenta por cobrar no encontrada.");
+
+            var saldo = cxc.MontoOriginal - cxc.MontoAbonado;
+            if (dto.Monto <= 0 || dto.Monto > saldo)
+                return BadRequest("El monto del abono no es válido.");
+
+            cxc.MontoAbonado += dto.Monto;
+            cxc.Estado = (cxc.MontoOriginal - cxc.MontoAbonado) <= 0 ? "Saldada" : "Parcial";
+            await _ctx.SaveChangesAsync();
+
+            return Ok(new { cxc.IdCxc, cxc.MontoAbonado, saldoPendiente = cxc.MontoOriginal - cxc.MontoAbonado, cxc.Estado });
         }
     }
 
@@ -160,5 +262,10 @@ namespace AuraSpa.Api.Controllers
     {
         public decimal MontoFinal   { get; set; }
         public string? Justificacion { get; set; }
+    }
+
+    public class RegistrarAbonoDto
+    {
+        public decimal Monto { get; set; }
     }
 }

@@ -1,6 +1,8 @@
-import React, { useState, useCallback, useRef } from 'react';
+import React, { useState, useCallback, useRef, useEffect } from 'react';
 import { useAuth } from '../context/AuthContext';
 import { useNavigate } from 'react-router-dom';
+import apiClient from '../services/apiClient';
+import jsPDF from 'jspdf';
 import {
   ShoppingCart, BarChart2, FileText, CreditCard, DoorOpen,
   CheckCircle, Trash2, Wifi, WifiOff, Send, LogOut, Clock,
@@ -8,36 +10,26 @@ import {
 } from 'lucide-react';
 
 // ── TIPOS ─────────────────────────────────────────────────────
-interface CartItem { id:number; descripcion:string; cantidad:number; precioUnitario:number; itbis:number; subtotal:number; }
+interface CartItem { id:number; descripcion:string; cantidad:number; precioUnitario:number; itbis:number; subtotal:number; idEmpleado?:number; }
 type Seccion = 'apertura'|'ventas'|'movimientos'|'cotizaciones'|'cxc'|'cierre';
 type Turno = 'Matutino (7AM-1PM)'|'Vespertino (1PM-6PM)'|'Nocturno (6PM-11PM)'|'Personalizado';
 
-// ── DATOS MOCK ────────────────────────────────────────────────
-const SERVICIOS = [
-  { id:1,  nombre:'Facial Hidratante',      precio:1800, categoria:'Facial' },
-  { id:2,  nombre:'Masaje Relajante 60min', precio:2500, categoria:'Masaje' },
-  { id:3,  nombre:'Masaje Relajante 90min', precio:3500, categoria:'Masaje' },
-  { id:4,  nombre:'Masaje Piedras Volcánicas', precio:4000, categoria:'Masaje' },
-  { id:5,  nombre:'Depilación Piernas',     precio:1200, categoria:'Depilación' },
-  { id:6,  nombre:'Diseño de Cejas',        precio:600,  categoria:'Cejas' },
-  { id:7,  nombre:'Manicura Rusa',          precio:1200, categoria:'Uñas' },
-  { id:8,  nombre:'Pedicura Spa',           precio:1500, categoria:'Uñas' },
-  { id:9,  nombre:'Corte Femenino',         precio:1500, categoria:'Pelo' },
-  { id:10, nombre:'Keratina (por onza)',     precio:350,  categoria:'Pelo' },
-  { id:11, nombre:'Esmalte Semipermanente', precio:850,  categoria:'Producto' },
-  { id:12, nombre:'Sérum Vitamina C',       precio:1200, categoria:'Producto' },
-];
-const ESPECIALISTAS = ['Nicole Martínez','Valentina Reyes','Camila Santos'];
+interface ServicioApi { id:number; nombre:string; precio:number; categoria:string; }
+interface EmpleadoApi { idEmpleado:number; nombreCompleto:string; }
+interface ClienteApi { idCliente:number; nombre:string; numeroDocumento:string; }
+interface MovimientoApi { id:number; concepto:string; fecha:string; tipo:string; condicionPago:string; usuario:string; monto:number; estado:string; }
+interface CxcApi { id:number; ventaId:string; clienteNombre:string; montoTotal:number; montoPagado:number; saldoPendiente:number; fechaVencimiento:string; estado:string; }
+
+// Único método de pago real por botón — mapeado a MetodoPago.id_metodo_pago de la BD
+const METODO_PAGO_ID: Record<string, number> = { Efectivo:1, Tarjeta:2, Transferencia:4 };
+const ID_SUCURSAL_DEFAULT = 1; // AuraSpa Principal — única sucursal activa
 const ITBIS_RATE = 0.18;
-const MOVIMIENTOS_DATA = [
-  { id:1, concepto:'Venta #FAC-001', fechaHora:'05/06/2026 09:30', tipo:'Ingreso', usuario:'Sofía Pérez (Cajera)', monto:2950.00, estado:'Sincronizado', condicionPago:'Contado' },
-  { id:2, concepto:'Venta #FAC-002', fechaHora:'05/06/2026 10:15', tipo:'Ingreso', usuario:'Sofía Pérez (Cajera)', monto:1416.00, estado:'Pendiente',    condicionPago:'Crédito' },
-];
-const CXC_DATA = [
-  { id:1, ventaId:'FAC-003', clienteNombre:'Gabriela Duverge', montoTotal:2950.00, montoPagado:0,      saldoPendiente:2950.00, fechaVencimiento:'19/06/2026', estado:'Pendiente', diasMora:0 },
-  { id:2, ventaId:'FAC-004', clienteNombre:'Diana Lantigua',   montoTotal:1200.00, montoPagado:600.00, saldoPendiente:600.00,  fechaVencimiento:'15/06/2026', estado:'Parcial',   diasMora:2 },
-];
 const fmt = (n:number) => n.toLocaleString('es-DO',{minimumFractionDigits:2});
+const formatFechaHora = (iso:string) => {
+  const d = new Date(iso);
+  return `${d.toLocaleDateString('es-DO')} ${d.toLocaleTimeString('es-DO',{hour:'2-digit',minute:'2-digit'})}`;
+};
+const formatFecha = (iso:string) => new Date(iso).toLocaleDateString('es-DO');
 const inputStyle:React.CSSProperties = { width:'100%', padding:'10px 15px', borderRadius:'15px', border:'1px solid #e8e0f5', outline:'none', background:'#fcfcfc', fontSize:'0.88rem', boxSizing:'border-box' };
 const labelStyle:React.CSSProperties = { display:'block', marginBottom:'6px', fontSize:'0.82rem', color:'var(--aura-gray)', fontWeight:'500' };
 
@@ -74,24 +66,23 @@ const TablaCarrito:React.FC<{cart:CartItem[];onRemove:(id:number)=>void}> = ({ca
 );
 
 // ── Búsqueda de cliente con debounce ──────────────────────────
-const BuscarCliente:React.FC<{onSelect:(nombre:string)=>void}> = ({onSelect}) => {
+const BuscarCliente:React.FC<{clientes:ClienteApi[];onSelect:(c:ClienteApi)=>void}> = ({clientes,onSelect}) => {
   const [q, setQ] = useState('');
-  const [resultados] = useState(['Gabriela Duverge','Diana Ferreras','Diana Lantigua','María González','Laura Ramírez','Carmen Torres','Ana Jiménez','Patricia Castro']);
-  const filtrados = q.length>1 ? resultados.filter(r=>r.toLowerCase().includes(q.toLowerCase())) : [];
+  const filtrados = q.length>1 ? clientes.filter(c=>c.nombre.toLowerCase().includes(q.toLowerCase())||c.numeroDocumento?.toLowerCase().includes(q.toLowerCase())) : [];
   return (
     <div style={{position:'relative'}}>
       <div style={{position:'relative'}}>
         <Search size={14} style={{position:'absolute',left:'12px',top:'12px',color:'#999'}}/>
-        <input type="text" placeholder="Buscar cliente por nombre..." value={q} onChange={e=>setQ(e.target.value)}
+        <input type="text" placeholder="Buscar cliente por nombre o cédula..." value={q} onChange={e=>setQ(e.target.value)}
           style={{...inputStyle,paddingLeft:'34px'}}/>
       </div>
       {filtrados.length>0&&(
         <div style={{position:'absolute',top:'100%',left:0,right:0,background:'white',border:'1px solid #eee',borderRadius:'12px',zIndex:100,boxShadow:'0 4px 20px rgba(0,0,0,0.1)',maxHeight:'180px',overflowY:'auto'}}>
           {filtrados.map(c=>(
-            <div key={c} onClick={()=>{onSelect(c);setQ(c);}} style={{padding:'10px 16px',cursor:'pointer',fontSize:'0.88rem',borderBottom:'1px solid #f5f5f5'}}
+            <div key={c.idCliente} onClick={()=>{onSelect(c);setQ(c.nombre);}} style={{padding:'10px 16px',cursor:'pointer',fontSize:'0.88rem',borderBottom:'1px solid #f5f5f5'}}
               onMouseEnter={e=>(e.currentTarget.style.background='#f0ecff')}
               onMouseLeave={e=>(e.currentTarget.style.background='white')}>
-              {c}
+              {c.nombre} — {c.numeroDocumento}
             </div>
           ))}
         </div>
@@ -178,16 +169,56 @@ const Caja:React.FC = () => {
   const [seccion,  setSeccion]  = useState<Seccion>('apertura');
   const [cajaAbierta, setCajaAbierta] = useState(false);
   const [fondoCaja,   setFondoCaja]   = useState(0);
-  const [pendientesSync] = useState(1);
+  const [idSesionCaja, setIdSesionCaja] = useState<number|null>(null);
+  const [conectado, setConectado] = useState(true);
+  const [sucursalActiva, setSucursalActiva] = useState('AuraSpa Piantini — Sucursal Principal');
+  const [idSucursalActiva, setIdSucursalActiva] = useState<number>(ID_SUCURSAL_DEFAULT);
+
+  useEffect(() => {
+    apiClient.get('/api/catalog/categorias')
+      .then(() => setConectado(true))
+      .catch(() => setConectado(false));
+    apiClient.get('/api/catalog/sucursales').then(res => {
+      if (res.data.length > 0) { setSucursalActiva(res.data[0].nombre); setIdSucursalActiva(res.data[0].idSucursal); }
+    }).catch(() => {});
+  }, []);
+
+  // Restaura una sesión de caja ya abierta (ej. tras recargar la página)
+  useEffect(() => {
+    if (!user?.id) return;
+    apiClient.get(`/api/caja/sesion-activa/${user.id}`).then(res => {
+      setIdSesionCaja(res.data.idSesionCaja);
+      setFondoCaja(res.data.montoInicial);
+      setCajaAbierta(true);
+      setSeccion('ventas');
+    }).catch(() => {}); // 404 = no hay sesión activa, es normal
+  }, [user?.id]);
 
   // Apertura
   const [montoApertura, setMontoApertura] = useState('');
   const [turno, setTurno] = useState<Turno>('Matutino (7AM-1PM)');
   const [montoError, setMontoError] = useState('');
 
+  // Datos reales desde la API
+  const [servicios,     setServicios]     = useState<ServicioApi[]>([]);
+  const [especialistas, setEspecialistas] = useState<EmpleadoApi[]>([]);
+  const [clientes,      setClientes]      = useState<ClienteApi[]>([]);
+  const categoriasDisponibles = Array.from(new Set(servicios.map(s=>s.categoria))).sort();
+
+  useEffect(() => {
+    apiClient.get('/api/catalog/empleados/0').then(res => setEspecialistas(res.data)).catch(() => {});
+    apiClient.get('/api/auth/clientes').then(res => {
+      setClientes(res.data.map((c:any) => ({ idCliente:c.idCliente, nombre:`${c.nombres} ${c.apellidos}`, numeroDocumento:c.numeroDocumento })));
+    }).catch(() => {});
+    apiClient.get('/api/catalog/services').then(res => {
+      setServicios(res.data.map((s:any) => ({ id:s.idItem, nombre:s.nombre, precio:s.precioBase, categoria:s.categoria?.nombre ?? 'Otros' })));
+    }).catch(() => {});
+  }, []);
+
   // Ventas
   const [cartVenta,      setCartVenta]      = useState<CartItem[]>([]);
   const [ventaCliente,   setVentaCliente]   = useState('Cliente Final');
+  const [ventaClienteId, setVentaClienteId] = useState<number|null>(null);
   const [ventaEspecialista, setVentaEspecialista] = useState('');
   const [ventaCategoria, setVentaCategoria] = useState('');
   const [ventaServicio,  setVentaServicio]  = useState('');
@@ -196,6 +227,7 @@ const Caja:React.FC = () => {
   const [ventaMetodo,    setVentaMetodo]    = useState('Efectivo');
   const [efectivoRecibido, setEfectivoRecibido] = useState('');
   const [ventaSuccess,   setVentaSuccess]   = useState(false);
+  const [ventaError,     setVentaError]     = useState('');
   const [espError,       setEspError]       = useState('');
   const [modalTarjeta,   setModalTarjeta]   = useState(false);
 
@@ -205,14 +237,23 @@ const Caja:React.FC = () => {
   const [cotCantidad, setCotCantidad] = useState('1');
   const [cotSuccess,  setCotSuccess]  = useState(false);
   const [emailEnviado, setEmailEnviado] = useState(false);
-  const cotContador = React.useRef(1001);
+  const cotContador = useRef(1001);
   const [cotNumero, setCotNumero] = useState(`COT-${String(cotContador.current).padStart(4,'0')}`);
 
   // Movimientos
   const [movFechaDesde, setMovFechaDesde] = useState('');
   const [movFechaHasta, setMovFechaHasta] = useState('');
-  const [movFiltrados,  setMovFiltrados]  = useState(MOVIMIENTOS_DATA);
+  const [movFiltrados,  setMovFiltrados]  = useState<MovimientoApi[]>([]);
   const [movFechaError, setMovFechaError] = useState('');
+
+  const cargarMovimientos = useCallback(async (desde?:string, hasta?:string) => {
+    try {
+      const res = await apiClient.get('/api/caja/movimientos', { params: { desde, hasta } });
+      setMovFiltrados(res.data);
+    } catch { setMovFiltrados([]); }
+  }, []);
+
+  useEffect(() => { if(seccion==='movimientos') cargarMovimientos(); }, [seccion, cargarMovimientos]);
 
   // CxC
   const [cxcClienteFiltro, setCxcClienteFiltro] = useState('');
@@ -220,20 +261,37 @@ const Caja:React.FC = () => {
   const [cxcEstadoFiltro, setCxcEstadoFiltro] = useState('Todos');
   const [abonoModal, setAbonoModal] = useState<{id:number;nombre:string;saldo:number}|null>(null);
   const [abonoMonto, setAbonoMonto] = useState('');
-  const [cxcData,    setCxcData]    = useState(CXC_DATA);
+  const [cxcData,    setCxcData]    = useState<CxcApi[]>([]);
+
+  const cargarCxc = useCallback(async () => {
+    try {
+      const res = await apiClient.get('/api/caja/cxc');
+      setCxcData(res.data);
+    } catch { setCxcData([]); }
+  }, []);
+
+  useEffect(() => { if(seccion==='cxc') cargarCxc(); }, [seccion, cargarCxc]);
 
   // Cierre
   const [montoCierre,      setMontoCierre]      = useState('');
   const [montoCierreError, setMontoCierreError] = useState('');
   const [cierreSuccess,    setCierreSuccess]    = useState(false);
+  const [observacionCierre, setObservacionCierre] = useState('');
+  const [ventasSesion, setVentasSesion] = useState<{total:number;idMetodoPago:number|null;estado:string}[]>([]);
+
+  useEffect(() => {
+    if (seccion==='cierre' && idSesionCaja) {
+      apiClient.get(`/api/caja/ventas/${idSesionCaja}`).then(res => setVentasSesion(res.data)).catch(() => setVentasSesion([]));
+    }
+  }, [seccion, idSesionCaja]);
 
   const validarNumero = (val:string, setter:(v:string)=>void, errSetter:(v:string)=>void) => {
     if(val!==''&&!/^\d*\.?\d*$/.test(val)){ errSetter('Solo valores numéricos.'); return; }
     errSetter(''); setter(val);
   };
 
-  const agregarItem = (cart:CartItem[], setCart:React.Dispatch<React.SetStateAction<CartItem[]>>, svcId:string, cantStr:string) => {
-    const svc = SERVICIOS.find(s=>s.id===Number(svcId));
+  const agregarItem = (cart:CartItem[], setCart:React.Dispatch<React.SetStateAction<CartItem[]>>, svcId:string, cantStr:string, idEmpleado?:number) => {
+    const svc = servicios.find(s=>s.id===Number(svcId));
     if(!svc) return;
     const cantidad = parseInt(cantStr)||1;
     const sub = svc.precio*cantidad;
@@ -242,15 +300,95 @@ const Caja:React.FC = () => {
     if(ex){
       setCart(cart.map(i=>i.id===svc.id?{...i,cantidad:i.cantidad+cantidad,itbis:(i.cantidad+cantidad)*svc.precio*ITBIS_RATE,subtotal:(i.cantidad+cantidad)*svc.precio*(1+ITBIS_RATE)}:i));
     } else {
-      setCart([...cart,{id:svc.id,descripcion:svc.nombre,cantidad,precioUnitario:svc.precio,itbis,subtotal:sub+itbis}]);
+      setCart([...cart,{id:svc.id,descripcion:svc.nombre,cantidad,precioUnitario:svc.precio,itbis,subtotal:sub+itbis,idEmpleado}]);
     }
   };
 
-  const handleAbrirCaja = () => {
+  const generarCotizacionPDF = (items:CartItem[], numero:string) => {
+    const doc = new jsPDF();
+    const pageWidth  = doc.internal.pageSize.getWidth();
+    const pageHeight = doc.internal.pageSize.getHeight();
+    const margin = 20;
+    const fechaHoy = new Date().toLocaleDateString('es-DO', { day:'numeric', month:'long', year:'numeric' });
+
+    doc.setFillColor(26,26,46);
+    doc.rect(0,0,pageWidth,45,'F');
+    doc.setFontSize(22); doc.setFont('helvetica','bold');
+    doc.setTextColor(255,255,255); doc.text('AURA', margin, 22);
+    const auraWidth = doc.getTextWidth('AURA');
+    doc.setTextColor(151,138,221); doc.text(' Spa', margin+auraWidth, 22);
+    doc.setFontSize(9); doc.setFont('helvetica','normal'); doc.setTextColor(200,200,220);
+    doc.text('Cotización de Servicios / Productos', margin, 32);
+    doc.text(sucursalActiva, margin, 39);
+
+    doc.setFontSize(8); doc.setTextColor(180,180,200);
+    doc.text('No. Cotización', pageWidth-margin, 22, { align:'right' });
+    doc.setFontSize(11); doc.setFont('helvetica','bold'); doc.setTextColor(151,138,221);
+    doc.text(numero, pageWidth-margin, 30, { align:'right' });
+    doc.setFontSize(8); doc.setFont('helvetica','normal'); doc.setTextColor(180,180,200);
+    doc.text(`Emitido: ${fechaHoy}`, pageWidth-margin, 38, { align:'right' });
+
+    doc.setDrawColor(151,138,221); doc.setLineWidth(0.8);
+    doc.line(margin,50,pageWidth-margin,50);
+
+    let y = 65;
+    doc.setFillColor(237,232,245);
+    doc.rect(margin,y-5,pageWidth-2*margin,10,'F');
+    doc.setFontSize(9); doc.setFont('helvetica','bold'); doc.setTextColor(31,45,61);
+    doc.text('Servicio / Producto', margin+2, y+2);
+    doc.text('Cant.', pageWidth-70, y+2, { align:'right' });
+    doc.text('Precio Unit.', pageWidth-45, y+2, { align:'right' });
+    doc.text('Subtotal', pageWidth-margin, y+2, { align:'right' });
+    y += 12;
+
+    doc.setFont('helvetica','normal'); doc.setTextColor(80,80,80);
+    items.forEach(item => {
+      doc.text(item.descripcion.slice(0,35), margin+2, y);
+      doc.text(String(item.cantidad), pageWidth-70, y, { align:'right' });
+      doc.text(`RD$ ${item.precioUnitario.toLocaleString('es-DO',{minimumFractionDigits:2})}`, pageWidth-45, y, { align:'right' });
+      doc.text(`RD$ ${(item.precioUnitario*item.cantidad).toLocaleString('es-DO',{minimumFractionDigits:2})}`, pageWidth-margin, y, { align:'right' });
+      y += 7;
+    });
+
+    y += 5;
+    doc.setDrawColor(220,216,240); doc.line(margin,y,pageWidth-margin,y); y += 8;
+    const subtotal = items.reduce((a,i)=>a+i.precioUnitario*i.cantidad,0);
+    const itbisTot = items.reduce((a,i)=>a+i.itbis,0);
+    doc.setFont('helvetica','bold'); doc.setTextColor(31,45,61);
+    doc.text(`Total (inc. ITBIS 18%): RD$ ${(subtotal+itbisTot).toLocaleString('es-DO',{minimumFractionDigits:2})}`, pageWidth-margin, y, { align:'right' });
+    y += 18;
+
+    doc.setDrawColor(151,138,221); doc.setLineWidth(0.5);
+    doc.line(margin,y,pageWidth-margin,y); y += 8;
+    doc.setFontSize(7.5); doc.setFont('helvetica','normal'); doc.setTextColor(160,160,160);
+    doc.text(`${numero} — Cotización válida por 15 días a partir del ${fechaHoy}`, pageWidth/2, y, { align:'center' });
+
+    doc.setFillColor(26,26,46);
+    doc.rect(0,pageHeight-12,pageWidth,12,'F');
+    doc.setFontSize(7); doc.setFont('helvetica','normal'); doc.setTextColor(180,180,200);
+    doc.text('www.auraspa.com  |  contacto@auraspa.com  |  809-000-0000', pageWidth/2, pageHeight-4, { align:'center' });
+
+    doc.save(`cotizacion-${numero}.pdf`);
+  };
+
+  const handleAbrirCaja = async () => {
     if(!montoApertura||isNaN(Number(montoApertura))||Number(montoApertura)<0){ setMontoError('Ingresa un monto válido (puede ser 0).'); return; }
-    setFondoCaja(Number(montoApertura));
-    setCajaAbierta(true);
-    setSeccion('ventas');
+    try {
+      const res = await apiClient.post('/api/caja/apertura', {
+        idUsuario: user?.id,
+        idSucursal: idSucursalActiva,
+        montoInicial: Number(montoApertura),
+        notas: turno
+      });
+      setIdSesionCaja(res.data.idSesionCaja);
+      setFondoCaja(Number(montoApertura));
+      setCajaAbierta(true);
+      setMontoError('');
+      setSeccion('ventas');
+    } catch (err:any) {
+      const msg = err.response?.data;
+      setMontoError(typeof msg === 'string' ? msg : 'No se pudo abrir la caja.');
+    }
   };
 
   const subVenta = cartVenta.reduce((a,i)=>a+i.precioUnitario*i.cantidad,0);
@@ -259,43 +397,65 @@ const Caja:React.FC = () => {
   const cambioEfectivo = Number(efectivoRecibido)-totVenta;
   const efectivoInsuficiente = efectivoRecibido!==''&&Number(efectivoRecibido)<totVenta;
 
+  const registrarVentaEnBackend = async () => {
+    try {
+      await apiClient.post('/api/caja/venta', {
+        idCliente: ventaClienteId,
+        idSesionCaja: idSesionCaja,
+        idMetodoPago: METODO_PAGO_ID[ventaMetodo],
+        condicionPago: ventaCondicion==='Crédito' ? 'Credito' : 'Contado',
+        detalles: cartVenta.map(i => ({ idItem:i.id, idEmpleado:i.idEmpleado, cantidad:i.cantidad, precioUnitario:i.precioUnitario, descuentoLinea:0 }))
+      });
+      setVentaError('');
+      setVentaSuccess(true);
+      setCartVenta([]); setEfectivoRecibido('');
+      setVentaCliente('Cliente Final'); setVentaClienteId(null);
+      setTimeout(()=>setVentaSuccess(false),3000);
+    } catch (err:any) {
+      const msg = err.response?.data;
+      setVentaError(typeof msg === 'string' ? msg : 'No se pudo registrar la venta.');
+    }
+  };
+
   const handleFinalizarVenta = () => {
     if(!ventaEspecialista){ setEspError('Selecciona un especialista.'); return; }
     if(cartVenta.length===0) return;
     setEspError('');
     if(ventaMetodo==='Tarjeta'){ setModalTarjeta(true); return; }
-    // Efectivo
-    setVentaSuccess(true);
-    setCartVenta([]); setEfectivoRecibido('');
-    setTimeout(()=>setVentaSuccess(false),3000);
+    registrarVentaEnBackend();
   };
 
   const confirmarPagoTarjeta = () => {
     setModalTarjeta(false);
-    setVentaSuccess(true);
-    setCartVenta([]); setEfectivoRecibido('');
-    setTimeout(()=>setVentaSuccess(false),3000);
+    registrarVentaEnBackend();
   };
 
-  const calcularMora = (cxc: typeof CXC_DATA[0]) => {
-    const hoy = new Date();
-    const venc = new Date(cxc.fechaVencimiento.split('/').reverse().join('-'));
-    const dias = Math.floor((hoy.getTime()-venc.getTime())/(1000*60*60*24));
+  const calcularDiasMora = (fechaVencimiento:string) => {
+    const dias = Math.floor((Date.now()-new Date(fechaVencimiento).getTime())/(1000*60*60*24));
+    return dias > 0 ? dias : 0;
+  };
+
+  const calcularMora = (cxc: CxcApi) => {
+    const dias = calcularDiasMora(cxc.fechaVencimiento);
     return dias > 0 ? Math.round(cxc.saldoPendiente * 0.03 * dias) : 0; // 3% mensual
   };
 
-  const registrarAbono = () => {
+  const registrarAbono = async () => {
     if(!abonoModal||!abonoMonto) return;
     const monto = parseFloat(abonoMonto);
     if(isNaN(monto)||monto<=0||monto>abonoModal.saldo) return;
-    setCxcData(prev=>prev.map(c=>c.id===abonoModal.id?{
-      ...c, montoPagado:c.montoPagado+monto, saldoPendiente:c.saldoPendiente-monto,
-      estado:c.saldoPendiente-monto<=0?'Saldada':'Parcial'
-    }:c));
+    try {
+      await apiClient.post(`/api/caja/cxc/${abonoModal.id}/abono`, { monto });
+      await cargarCxc();
+    } catch {}
     setAbonoModal(null); setAbonoMonto('');
   };
 
-  const totalVentasTurno = 4366.00;
+  const ventasNoCanceladas = ventasSesion.filter(v=>v.estado!=='Cancelada');
+  const totalVentasTurno   = ventasNoCanceladas.reduce((a,v)=>a+v.total,0);
+  const ventasEfectivo     = ventasNoCanceladas.filter(v=>v.idMetodoPago===METODO_PAGO_ID.Efectivo).reduce((a,v)=>a+v.total,0);
+  const ventasTarjeta      = ventasNoCanceladas.filter(v=>v.idMetodoPago===METODO_PAGO_ID.Tarjeta).reduce((a,v)=>a+v.total,0);
+  const ventasTransferencia = ventasNoCanceladas.filter(v=>v.idMetodoPago===METODO_PAGO_ID.Transferencia).reduce((a,v)=>a+v.total,0);
   const diferenciaCierre = Number(montoCierre)-(fondoCaja+totalVentasTurno);
 
   const tabs = [
@@ -351,9 +511,12 @@ const Caja:React.FC = () => {
           )}
         </div>
         <div style={{display:'flex',alignItems:'center',gap:'20px',fontSize:'0.82rem'}}>
-          <span style={{display:'flex',alignItems:'center',gap:'5px',color:pendientesSync>0?'#ef4444':'#22c55e'}}>
-            {pendientesSync>0?<WifiOff size={14}/>:<Wifi size={14}/>}
-            {pendientesSync>0?`Desconectado (${pendientesSync} pendientes)`:'Conectado'}
+          <span style={{display:'flex',alignItems:'center',gap:'5px',color:'var(--aura-gray)'}}>
+            {sucursalActiva}
+          </span>
+          <span style={{display:'flex',alignItems:'center',gap:'5px',color:conectado?'#22c55e':'#ef4444'}}>
+            {conectado?<Wifi size={14}/>:<WifiOff size={14}/>}
+            {conectado?'Conectado':'Sin conexión'}
           </span>
           <span style={{display:'flex',alignItems:'center',gap:'4px',color:'var(--aura-gray)'}}>
             <Clock size={14}/>{new Date().toLocaleTimeString('es-DO')}
@@ -364,9 +527,6 @@ const Caja:React.FC = () => {
             </div>
             <span style={{fontWeight:'500',color:'var(--aura-navy)',fontSize:'0.88rem'}}>{user?.nombre} ({user?.perfil})</span>
           </div>
-          <button onClick={()=>navigate('/dashboard/staff')} style={{background:'none',border:'none',cursor:'pointer',color:'var(--aura-gray)',display:'flex',alignItems:'center',gap:'5px',fontSize:'0.82rem'}}>
-            <LogOut size={14}/> Salir
-          </button>
         </div>
       </div>
 
@@ -431,7 +591,7 @@ const Caja:React.FC = () => {
                   <div>
                     <label style={labelStyle}>Cliente</label>
                     {/* Búsqueda con texto libre en vez de dropdown */}
-                    <BuscarCliente onSelect={setVentaCliente}/>
+                    <BuscarCliente clientes={clientes} onSelect={c=>{setVentaCliente(c.nombre);setVentaClienteId(c.idCliente);}}/>
                     <p style={{fontSize:'0.75rem',color:'#888',marginTop:'3px'}}>Seleccionado: <strong>{ventaCliente}</strong></p>
                   </div>
                   <div>
@@ -440,7 +600,7 @@ const Caja:React.FC = () => {
                   </div>
                   <div>
                     <label style={labelStyle}>Sucursal</label>
-                    <input type="text" value="AuraSpa Principal" disabled style={{...inputStyle,background:'#f0f0f0'}}/>
+                    <input type="text" value={sucursalActiva} disabled style={{...inputStyle,background:'#f0f0f0'}}/>
                   </div>
                 </div>
                 <p style={{fontSize:'0.78rem',color:'var(--aura-gray)',margin:0,textAlign:'right'}}>
@@ -455,7 +615,7 @@ const Caja:React.FC = () => {
                     <label style={labelStyle}>Categoría</label>
                     <select value={ventaCategoria} onChange={e=>setVentaCategoria(e.target.value)} style={{...inputStyle,cursor:'pointer'}}>
                       <option value="">Todas</option>
-                      {['Facial','Masaje','Depilación','Cejas','Uñas','Pelo','Producto'].map(c=><option key={c}>{c}</option>)}
+                      {categoriasDisponibles.map(c=><option key={c}>{c}</option>)}
                     </select>
                   </div>
                   <div>
@@ -463,7 +623,7 @@ const Caja:React.FC = () => {
                     <select value={ventaEspecialista} onChange={e=>{setVentaEspecialista(e.target.value);setEspError('');}}
                       style={{...inputStyle,cursor:'pointer',border:espError?'1px solid #ef4444':'1px solid #e8e0f5'}}>
                       <option value="">Selecciona...</option>
-                      {ESPECIALISTAS.map(e=><option key={e}>{e}</option>)}
+                      {especialistas.map(e=><option key={e.idEmpleado} value={e.idEmpleado}>{e.nombreCompleto}</option>)}
                     </select>
                     {espError&&<p style={{color:'#ef4444',fontSize:'0.72rem',marginTop:'2px'}}>{espError}</p>}
                   </div>
@@ -471,7 +631,7 @@ const Caja:React.FC = () => {
                     <label style={labelStyle}>Servicio / Producto</label>
                     <select value={ventaServicio} onChange={e=>setVentaServicio(e.target.value)} style={{...inputStyle,cursor:'pointer'}}>
                       <option value="">Selecciona...</option>
-                      {SERVICIOS.filter(s=>!ventaCategoria||s.categoria===ventaCategoria).map(s=><option key={s.id} value={s.id}>{s.nombre}</option>)}
+                      {servicios.filter(s=>!ventaCategoria||s.categoria===ventaCategoria).map(s=><option key={s.id} value={s.id}>{s.nombre}</option>)}
                     </select>
                   </div>
                   <div>
@@ -479,7 +639,7 @@ const Caja:React.FC = () => {
                     <input type="text" value={ventaCantidad} onChange={e=>{if(/^\d*$/.test(e.target.value))setVentaCantidad(e.target.value);}} style={inputStyle}/>
                   </div>
                   <div>
-                    <button onClick={()=>agregarItem(cartVenta,setCartVenta,ventaServicio,ventaCantidad)} className="btn-AuraSpa" style={{padding:'10px 18px',whiteSpace:'nowrap'}}>+ Añadir</button>
+                    <button onClick={()=>agregarItem(cartVenta,setCartVenta,ventaServicio,ventaCantidad,ventaEspecialista?Number(ventaEspecialista):undefined)} className="btn-AuraSpa" style={{padding:'10px 18px',whiteSpace:'nowrap'}}>+ Añadir</button>
                   </div>
                 </div>
               </div>
@@ -489,6 +649,11 @@ const Caja:React.FC = () => {
                   <div style={{display:'flex',alignItems:'center',gap:'8px',background:'#f0fdf4',border:'1px solid #86efac',borderRadius:'12px',padding:'10px 16px',marginBottom:'15px'}}>
                     <CheckCircle size={16} color="#22c55e"/>
                     <span style={{color:'#16a34a',fontSize:'0.85rem'}}>Venta registrada exitosamente.</span>
+                  </div>
+                )}
+                {ventaError&&(
+                  <div style={{background:'#fef2f2',border:'1px solid #fecaca',borderRadius:'12px',padding:'10px 16px',marginBottom:'15px'}}>
+                    <span style={{color:'#ef4444',fontSize:'0.85rem'}}>{ventaError}</span>
                   </div>
                 )}
                 <TablaCarrito cart={cartVenta} onRemove={id=>setCartVenta(cartVenta.filter(i=>i.id!==id))}/>
@@ -561,7 +726,7 @@ const Caja:React.FC = () => {
               <h4 style={{fontWeight:'700',color:'var(--aura-navy)',marginBottom:'20px'}}>Filtros</h4>
               <div style={{display:'grid',gridTemplateColumns:'repeat(auto-fill,minmax(160px,1fr))',gap:'15px',marginBottom:'15px'}}>
                 <div><label style={labelStyle}>No. Factura</label><input type="text" placeholder="FAC-001" style={inputStyle}/></div>
-                <div><label style={labelStyle}>Empleado</label><select style={inputStyle}><option>Todos</option>{ESPECIALISTAS.map(e=><option key={e}>{e}</option>)}</select></div>
+                <div><label style={labelStyle}>Empleado</label><select style={inputStyle}><option>Todos</option>{especialistas.map(e=><option key={e.idEmpleado}>{e.nombreCompleto}</option>)}</select></div>
                 <div><label style={labelStyle}>Fecha Desde</label><input type="date" value={movFechaDesde} onChange={e=>setMovFechaDesde(e.target.value)} style={inputStyle}/></div>
                 <div><label style={labelStyle}>Fecha Hasta</label><input type="date" value={movFechaHasta} onChange={e=>setMovFechaHasta(e.target.value)} style={inputStyle}/></div>
                 <div><label style={labelStyle}>Condición</label><select style={inputStyle}><option>Todos</option><option>Contado</option><option>Crédito</option></select></div>
@@ -575,9 +740,9 @@ const Caja:React.FC = () => {
                     return;
                   }
                   setMovFechaError('');
-                  setMovFiltrados(MOVIMIENTOS_DATA);
+                  cargarMovimientos(movFechaDesde||undefined, movFechaHasta||undefined);
                 }} className="btn-AuraSpa" style={{padding:'10px 25px'}}>Filtrar</button>
-                <button onClick={()=>{setMovFechaDesde('');setMovFechaHasta('');setMovFiltrados(MOVIMIENTOS_DATA);setMovFechaError('');}} className="btn-outline-aura" style={{padding:'10px 25px'}}>Limpiar</button>
+                <button onClick={()=>{setMovFechaDesde('');setMovFechaHasta('');setMovFechaError('');cargarMovimientos();}} className="btn-outline-aura" style={{padding:'10px 25px'}}>Limpiar</button>
               </div></div>
             </div>
             <div className="card-aura" style={{padding:'25px'}}>
@@ -590,20 +755,22 @@ const Caja:React.FC = () => {
                   </tr>
                 </thead>
                 <tbody>
-                  {movFiltrados.map((m,i)=>(
+                  {movFiltrados.length===0?(
+                    <tr><td colSpan={8} style={{padding:'30px',textAlign:'center',color:'#bbb',fontSize:'0.88rem'}}>Sin movimientos en el rango seleccionado</td></tr>
+                  ):movFiltrados.map((m,i)=>(
                     <tr key={m.id} style={{borderBottom:'1px solid #f0edf5',background:i%2===0?'white':'#faf9ff'}}>
                       <td style={{padding:'10px 14px'}}>{m.id}</td>
                       <td style={{padding:'10px 14px',fontWeight:'500'}}>{m.concepto}</td>
-                      <td style={{padding:'10px 14px',color:'var(--aura-gray)'}}>{m.fechaHora}</td>
+                      <td style={{padding:'10px 14px',color:'var(--aura-gray)'}}>{formatFechaHora(m.fecha)}</td>
                       <td style={{padding:'10px 14px'}}><span style={{color:m.tipo==='Ingreso'?'#22c55e':'#ef4444',fontWeight:'600'}}>{m.tipo}</span></td>
                       <td style={{padding:'10px 14px'}}>
-                        <span style={{background:m.condicionPago==='Crédito'?'#fffbeb':'#f0fdf4',color:m.condicionPago==='Crédito'?'#f59e0b':'#22c55e',padding:'3px 10px',borderRadius:'20px',fontSize:'0.78rem',fontWeight:'600'}}>{m.condicionPago}</span>
+                        <span style={{background:m.condicionPago==='Credito'?'#fffbeb':'#f0fdf4',color:m.condicionPago==='Credito'?'#f59e0b':'#22c55e',padding:'3px 10px',borderRadius:'20px',fontSize:'0.78rem',fontWeight:'600'}}>{m.condicionPago==='Credito'?'Crédito':m.condicionPago}</span>
                       </td>
                       {/* Usuario corregido — el cajero es quien hace la transacción */}
                       <td style={{padding:'10px 14px',color:'var(--aura-gray)'}}>{m.usuario}</td>
                       <td style={{padding:'10px 14px',fontWeight:'600',color:'var(--aura-navy)'}}>RD$ {fmt(m.monto)}</td>
                       <td style={{padding:'10px 14px'}}>
-                        <span style={{background:m.estado==='Sincronizado'?'#f0fdf4':'#fffbeb',color:m.estado==='Sincronizado'?'#22c55e':'#f59e0b',padding:'3px 10px',borderRadius:'20px',fontSize:'0.78rem',fontWeight:'600'}}>{m.estado}</span>
+                        <span style={{background:m.estado==='Completada'?'#f0fdf4':m.estado==='Cancelada'?'#fef2f2':'#fffbeb',color:m.estado==='Completada'?'#22c55e':m.estado==='Cancelada'?'#ef4444':'#f59e0b',padding:'3px 10px',borderRadius:'20px',fontSize:'0.78rem',fontWeight:'600'}}>{m.estado}</span>
                       </td>
                     </tr>
                   ))}
@@ -644,7 +811,7 @@ const Caja:React.FC = () => {
                       <label style={labelStyle}>Servicio / Producto</label>
                       <select value={cotServicio} onChange={e=>setCotServicio(e.target.value)} style={{...inputStyle,cursor:'pointer'}}>
                         <option value="">Selecciona...</option>
-                        {SERVICIOS.map(s=><option key={s.id} value={s.id}>{s.nombre} — RD$ {fmt(s.precio)}</option>)}
+                        {servicios.map(s=><option key={s.id} value={s.id}>{s.nombre} — RD$ {fmt(s.precio)}</option>)}
                       </select>
                     </div>
                     <div>
@@ -671,7 +838,15 @@ const Caja:React.FC = () => {
                   <div style={{fontSize:'0.75rem',opacity:0.8,marginBottom:'4px'}}>Total Cotizado</div>
                   <div style={{fontSize:'1.6rem',fontWeight:'800'}}>RD$ {fmt(cartCot.reduce((a,i)=>a+i.subtotal,0))}</div>
                 </div>
-                <button onClick={()=>{if(cartCot.length===0)return;setCotSuccess(true);setCartCot([]);setCotContador(prev=>prev+1);setTimeout(()=>setCotSuccess(false),3000);}}
+                <button onClick={()=>{
+                  if(cartCot.length===0)return;
+                  generarCotizacionPDF(cartCot, cotNumero);
+                  setCotSuccess(true);
+                  setCartCot([]);
+                  cotContador.current += 1;
+                  setCotNumero(`COT-${String(cotContador.current).padStart(4,'0')}`);
+                  setTimeout(()=>setCotSuccess(false),3000);
+                }}
                   className="btn-AuraSpa" style={{width:'100%',padding:'12px',marginBottom:'10px'}} disabled={cartCot.length===0}>
                   Generar Cotización
                 </button>
@@ -706,16 +881,18 @@ const Caja:React.FC = () => {
                   </tr>
                 </thead>
                 <tbody>
-                  {cxcData.filter(cx=>(cxcClienteFiltro===''||cx.clienteNombre.toLowerCase().includes(cxcClienteFiltro.toLowerCase()))&&(cxcFacturaFiltro===''||cx.ventaId.toLowerCase().includes(cxcFacturaFiltro.toLowerCase()))&&(cxcEstadoFiltro==='Todos'||cx.estado===cxcEstadoFiltro)).map((c,i)=>(
+                  {cxcData.filter(cx=>(cxcClienteFiltro===''||cx.clienteNombre.toLowerCase().includes(cxcClienteFiltro.toLowerCase()))&&(cxcFacturaFiltro===''||cx.ventaId.toLowerCase().includes(cxcFacturaFiltro.toLowerCase()))&&(cxcEstadoFiltro==='Todos'||cx.estado===cxcEstadoFiltro)).length===0?(
+                    <tr><td colSpan={9} style={{padding:'30px',textAlign:'center',color:'#bbb',fontSize:'0.88rem'}}>Sin cuentas por cobrar pendientes</td></tr>
+                  ):cxcData.filter(cx=>(cxcClienteFiltro===''||cx.clienteNombre.toLowerCase().includes(cxcClienteFiltro.toLowerCase()))&&(cxcFacturaFiltro===''||cx.ventaId.toLowerCase().includes(cxcFacturaFiltro.toLowerCase()))&&(cxcEstadoFiltro==='Todos'||cx.estado===cxcEstadoFiltro)).map((c,i)=>(
                     <tr key={c.id} style={{borderBottom:'1px solid #f0edf5',background:i%2===0?'white':'#faf9ff'}}>
                       <td style={{padding:'10px 14px',fontWeight:'500'}}>{c.ventaId}</td>
                       <td style={{padding:'10px 14px'}}>{c.clienteNombre}</td>
                       <td style={{padding:'10px 14px'}}>RD$ {fmt(c.montoTotal)}</td>
                       <td style={{padding:'10px 14px',color:'#22c55e',fontWeight:'600'}}>RD$ {fmt(c.montoPagado)}</td>
                       <td style={{padding:'10px 14px',color:'#ef4444',fontWeight:'600'}}>RD$ {fmt(c.saldoPendiente)}</td>
-                      <td style={{padding:'10px 14px',color:'var(--aura-gray)'}}>{c.fechaVencimiento}</td>
+                      <td style={{padding:'10px 14px',color:'var(--aura-gray)'}}>{formatFecha(c.fechaVencimiento)}</td>
                       <td style={{padding:'10px 14px'}}>
-                        {c.diasMora>0?<span style={{color:'#ef4444',fontWeight:'600'}}>{c.diasMora}d · +RD$ {calcularMora(c).toLocaleString('es-DO')}</span>:<span style={{color:'#22c55e'}}>Al día</span>}
+                        {calcularDiasMora(c.fechaVencimiento)>0?<span style={{color:'#ef4444',fontWeight:'600'}}>{calcularDiasMora(c.fechaVencimiento)}d · +RD$ {calcularMora(c).toLocaleString('es-DO')}</span>:<span style={{color:'#22c55e'}}>Al día</span>}
                       </td>
                       <td style={{padding:'10px 14px'}}>
                         <span style={{background:c.estado==='Parcial'?'#fffbeb':c.estado==='Saldada'?'#f0fdf4':'#fef2f2',
@@ -764,19 +941,23 @@ const Caja:React.FC = () => {
                 {/* Resumen completo del turno */}
                 <div style={{background:'#f8f6ff',borderRadius:'15px',padding:'20px',marginBottom:'20px'}}>
                   <h4 style={{fontWeight:'600',marginBottom:'14px',color:'var(--aura-navy)',fontSize:'0.9rem'}}>Resumen del Turno</h4>
-                  {[
-                    {label:'Fondo inicial:',       valor:`RD$ ${fmt(fondoCaja)}`,       color:'inherit'},
-                    {label:'Total ventas:',         valor:`RD$ ${fmt(totalVentasTurno)}`, color:'#22c55e'},
-                    {label:'Ventas en efectivo:',   valor:`RD$ ${fmt(totalVentasTurno*0.7)}`, color:'inherit'},
-                    {label:'Ventas con tarjeta:',   valor:`RD$ ${fmt(totalVentasTurno*0.3)}`, color:'inherit'},
-                    {label:'CxC generadas:',        valor:`RD$ ${fmt(cxcData.reduce((a,c)=>a+c.saldoPendiente,0))}`, color:'#f59e0b'},
-                    {label:'El sistema reporta:',   valor:`RD$ ${fmt(fondoCaja+totalVentasTurno)}`, color:'var(--aura-navy)'},
-                  ].map((r,i)=>(
-                    <div key={i} style={{display:'flex',justifyContent:'space-between',marginBottom:i<4?'8px':'0',fontSize:'0.88rem',paddingTop:i===5?'10px':0,borderTop:i===5?'1px solid #e8e0f5':'none'}}>
-                      <span style={{color:'var(--aura-gray)'}}>{r.label}</span>
-                      <strong style={{color:r.color}}>{r.valor}</strong>
-                    </div>
-                  ))}
+                  {(() => {
+                    const filas = [
+                      {label:'Fondo inicial:',            valor:`RD$ ${fmt(fondoCaja)}`,            color:'inherit'},
+                      {label:'Total ventas:',              valor:`RD$ ${fmt(totalVentasTurno)}`,      color:'#22c55e'},
+                      {label:'Ventas en efectivo:',        valor:`RD$ ${fmt(ventasEfectivo)}`,        color:'inherit'},
+                      {label:'Ventas con tarjeta:',        valor:`RD$ ${fmt(ventasTarjeta)}`,         color:'inherit'},
+                      {label:'Ventas por transferencia:',  valor:`RD$ ${fmt(ventasTransferencia)}`,   color:'inherit'},
+                      {label:'CxC generadas:',             valor:`RD$ ${fmt(cxcData.reduce((a,c)=>a+c.saldoPendiente,0))}`, color:'#f59e0b'},
+                      {label:'El sistema reporta:',        valor:`RD$ ${fmt(fondoCaja+totalVentasTurno)}`, color:'var(--aura-navy)'},
+                    ];
+                    return filas.map((r,i)=>(
+                      <div key={i} style={{display:'flex',justifyContent:'space-between',marginBottom:i<filas.length-2?'8px':'0',fontSize:'0.88rem',paddingTop:i===filas.length-1?'10px':0,borderTop:i===filas.length-1?'1px solid #e8e0f5':'none'}}>
+                        <span style={{color:'var(--aura-gray)'}}>{r.label}</span>
+                        <strong style={{color:r.color}}>{r.valor}</strong>
+                      </div>
+                    ));
+                  })()}
                 </div>
 
                 <div style={{marginBottom:'16px'}}>
@@ -804,16 +985,27 @@ const Caja:React.FC = () => {
 
                 <div style={{marginBottom:'25px'}}>
                   <label style={labelStyle}>Observación</label>
-                  <input type="text" placeholder="Ej: Cierre sin novedades" style={inputStyle}/>
+                  <input type="text" value={observacionCierre} onChange={e=>setObservacionCierre(e.target.value)} placeholder="Ej: Cierre sin novedades" style={inputStyle}/>
                 </div>
 
                 <div style={{display:'flex',gap:'12px'}}>
-                  <button onClick={()=>{
+                  <button onClick={async ()=>{
                     if(!montoCierre||isNaN(Number(montoCierre))||Number(montoCierre)<0){ setMontoCierreError('Ingresa el efectivo contado.'); return; }
-                    setMontoCierreError('');
-                    setCierreSuccess(true);
-                    setCajaAbierta(false);
-                    setTimeout(()=>{ setCierreSuccess(false); navigate('/dashboard/staff'); },2000);
+                    if(!idSesionCaja){ setMontoCierreError('No hay una sesión de caja activa.'); return; }
+                    try {
+                      await apiClient.post(`/api/caja/cierre/${idSesionCaja}`, {
+                        montoFinal: Number(montoCierre),
+                        justificacion: observacionCierre || undefined
+                      });
+                      setMontoCierreError('');
+                      setCierreSuccess(true);
+                      setCajaAbierta(false);
+                      setIdSesionCaja(null);
+                      setTimeout(()=>{ setCierreSuccess(false); navigate('/dashboard/staff'); },2000);
+                    } catch (err:any) {
+                      const msg = err.response?.data;
+                      setMontoCierreError(typeof msg === 'string' ? msg : 'No se pudo cerrar la caja.');
+                    }
                   }} style={{flex:1,padding:'13px',background:'#ef4444',color:'white',border:'none',borderRadius:'30px',cursor:'pointer',fontWeight:'700',fontSize:'0.95rem'}}>
                     Confirmar Cierre
                   </button>

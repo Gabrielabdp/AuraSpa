@@ -21,6 +21,7 @@ namespace AuraSpa.Api.Models
         [Column("tipo_venta")] public string TipoVenta { get; set; } = "POS";
         [Column("estado")] public string Estado { get; set; } = "Completada";
         public List<VentaDetalle> Detalles { get; set; } = new();
+        [ForeignKey("IdUsuario")] public Usuario? Usuario { get; set; }
     }
 
     [Table("VentaDetalle")]

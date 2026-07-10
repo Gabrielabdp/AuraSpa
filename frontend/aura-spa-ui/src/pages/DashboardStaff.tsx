@@ -116,7 +116,6 @@ const DashboardStaff: React.FC = () => {
               <h3 style={{ fontWeight: 'bold' }}>Punto de Venta</h3>
             </div>
             <p style={{ color: '#666', marginBottom: '20px' }}>Abre la caja, procesa ventas y genera facturas.</p>
-            <button className="btn-outline-aura" style={{ width: '100%' }}>Ir a Caja</button>
           </div>
         )}
 
@@ -128,7 +127,6 @@ const DashboardStaff: React.FC = () => {
               <h3 style={{ fontWeight: 'bold' }}>Clientes</h3>
             </div>
             <p style={{ color: '#666', marginBottom: '20px' }}>Administra la base de clientes, historiales y preferencias.</p>
-            <button className="btn-outline-aura" style={{ width: '100%' }}>Ver Listado</button>
           </div>
         )}
 
@@ -140,7 +138,6 @@ const DashboardStaff: React.FC = () => {
               <h3 style={{ fontWeight: 'bold' }}>Reportes</h3>
             </div>
             <p style={{ color: '#666', marginBottom: '20px' }}>Métricas de ventas, citas y rendimiento del mes.</p>
-            <button className="btn-outline-aura" style={{ width: '100%' }}>Ver Reportes</button>
           </div>
         )}
 
@@ -152,7 +149,6 @@ const DashboardStaff: React.FC = () => {
               <h3 style={{ fontWeight: 'bold' }}>Mis Citas de Hoy</h3>
             </div>
             <p style={{ color: '#666', marginBottom: '20px' }}>Consulta y gestiona las citas asignadas a ti hoy.</p>
-            <button className="btn-outline-aura" style={{ width: '100%' }}>Ver mis citas</button>
           </div>
         )}
 
@@ -163,7 +159,6 @@ const DashboardStaff: React.FC = () => {
             <h3 style={{ fontWeight: 'bold' }}>Gestión de Citas</h3>
           </div>
           <p style={{ color: '#666', marginBottom: '20px' }}>Confirma, rechaza y gestiona todas las reservas.</p>
-          <button className="btn-outline-aura" style={{ width: '100%' }}>Ver Citas</button>
         </div>
 
         {/* Administración — solo Admin */}
@@ -174,7 +169,6 @@ const DashboardStaff: React.FC = () => {
               <h3 style={{ fontWeight: 'bold' }}>Administración</h3>
             </div>
             <p style={{ color: '#666', marginBottom: '20px' }}>Usuarios, perfiles, sucursales e inventario.</p>
-            <button className="btn-outline-aura" style={{ width: '100%' }}>Gestionar</button>
           </div>
         )}
 
