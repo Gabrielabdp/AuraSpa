@@ -31,7 +31,7 @@ const RecuperarContrasena: React.FC = () => {
           <CheckCircle size={52} color="#22c55e" style={{ marginBottom:'20px' }} />
           <h3 style={{ color:'var(--aura-navy)', fontWeight:'bold', marginBottom:'12px' }}>Solicitud enviada</h3>
           <p style={{ color:'#666', fontSize:'0.9rem', marginBottom:'16px' }}>
-            En un sistema en producción recibirías un correo con las instrucciones.
+            Si el correo existe en nuestro sistema, recibirás un correo con las instrucciones.
           </p>
           {/* Token visible solo en ambiente académico */}
           {token && (
@@ -40,7 +40,12 @@ const RecuperarContrasena: React.FC = () => {
               <code style={{ fontSize:'0.9rem', color:'#15803d', wordBreak:'break-all' }}>{token}</code>
             </div>
           )}
-          <button className="btn-AuraSpa" onClick={() => navigate('/login')} style={{ width:'100%', padding:'13px' }}>
+          {token && (
+            <button className="btn-AuraSpa" onClick={() => navigate(`/restablecer-contrasena?token=${token}`)} style={{ width:'100%', padding:'13px', marginBottom:'12px' }}>
+              Continuar y crear nueva contraseña
+            </button>
+          )}
+          <button className={token ? 'btn-outline-aura' : 'btn-AuraSpa'} onClick={() => navigate('/login')} style={{ width:'100%', padding:'13px' }}>
             Volver al inicio de sesión
           </button>
         </div>

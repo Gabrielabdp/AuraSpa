@@ -5,6 +5,7 @@ using AuraSpa.Api.Data;
 using AuraSpa.Api.DTOs;
 using AuraSpa.Api.Helpers;
 using AuraSpa.Api.Models;
+using AuraSpa.Api.Services;
 using Microsoft.AspNetCore.Authorization;
 using Microsoft.AspNetCore.Mvc;
 using Microsoft.EntityFrameworkCore;
@@ -18,9 +19,11 @@ namespace AuraSpa.Api.Controllers
     {
         private readonly ApplicationDbContext _ctx;
         private readonly IConfiguration _cfg;
+        private readonly EmailService _emailService;
+        private readonly ILogger<AuthController> _logger;
 
-        public AuthController(ApplicationDbContext ctx, IConfiguration cfg)
-        { _ctx = ctx; _cfg = cfg; }
+        public AuthController(ApplicationDbContext ctx, IConfiguration cfg, EmailService emailService, ILogger<AuthController> logger)
+        { _ctx = ctx; _cfg = cfg; _emailService = emailService; _logger = logger; }
 
         [HttpPost("login")]
         public async Task<IActionResult> Login([FromBody] LoginDto dto)
@@ -183,6 +186,80 @@ namespace AuraSpa.Api.Controllers
             usuario.ContrasenaHash = BCrypt.Net.BCrypt.HashPassword(dto.PasswordNueva);
             await _ctx.SaveChangesAsync();
             return Ok(new { message = "Contraseña actualizada correctamente." });
+        }
+
+        // POST /api/auth/recuperar-contrasena
+        [HttpPost("recuperar-contrasena")]
+        public async Task<IActionResult> RecuperarContrasena([FromBody] RecuperarContrasenaDto dto)
+        {
+            var usuario = await _ctx.Usuarios.FirstOrDefaultAsync(u => u.Email == dto.Email);
+
+            // Respuesta genérica siempre — no revelamos si el correo existe o no
+            if (usuario == null)
+                return Ok(new { message = "Si el correo existe en nuestro sistema, recibirás instrucciones." });
+
+            var token = Guid.NewGuid().ToString("N");
+            usuario.TokenRecuperacion = token;
+            usuario.TokenRecuperacionExpira = DateTime.Now.AddHours(1);
+            await _ctx.SaveChangesAsync();
+
+            var frontendUrl = _cfg["Frontend:BaseUrl"] ?? "http://localhost:5173";
+            var link = $"{frontendUrl}/restablecer-contrasena?token={token}";
+
+            try
+            {
+                var html = ConstruirHtmlRecuperacion(usuario.Nombre, link);
+                await _emailService.SendEmailAsync(usuario.Email, usuario.Nombre, "AuraSpa — Recupera tu contraseña", html);
+            }
+            catch (Exception ex)
+            {
+                _logger.LogError(ex, "No se pudo enviar el correo de recuperación para {Email}", dto.Email);
+            }
+
+            // El token también se devuelve en la respuesta para pruebas en ambiente académico
+            return Ok(new { message = "Si el correo existe en nuestro sistema, recibirás instrucciones.", token });
+        }
+
+        // POST /api/auth/restablecer-contrasena
+        [HttpPost("restablecer-contrasena")]
+        public async Task<IActionResult> RestablecerContrasena([FromBody] RestablecerContrasenaDto dto)
+        {
+            if (string.IsNullOrEmpty(dto.NuevaPassword) || dto.NuevaPassword.Length < 8)
+                return BadRequest("La nueva contraseña debe tener al menos 8 caracteres.");
+
+            var usuario = await _ctx.Usuarios.FirstOrDefaultAsync(u => u.TokenRecuperacion == dto.Token);
+            if (usuario == null || usuario.TokenRecuperacionExpira == null || usuario.TokenRecuperacionExpira < DateTime.Now)
+                return BadRequest("El enlace de recuperación es inválido o ha expirado.");
+
+            usuario.ContrasenaHash = BCrypt.Net.BCrypt.HashPassword(dto.NuevaPassword);
+            usuario.TokenRecuperacion = null;
+            usuario.TokenRecuperacionExpira = null;
+            usuario.IntentosFallidos = 0;
+            usuario.BloqueadoHasta = null;
+            await _ctx.SaveChangesAsync();
+
+            return Ok(new { message = "Contraseña restablecida correctamente." });
+        }
+
+        private static string ConstruirHtmlRecuperacion(string nombre, string link)
+        {
+            return $@"
+            <div style=""font-family:'Segoe UI',Tahoma,Geneva,Verdana,sans-serif;max-width:520px;margin:0 auto;"">
+              <div style=""background:#1A1A2E;padding:30px;text-align:center;border-radius:20px 20px 0 0;"">
+                <span style=""color:#ffffff;font-size:1.6rem;font-weight:bold;"">AURA</span>
+                <span style=""color:#978ADD;font-size:1.6rem;font-weight:bold;""> Spa</span>
+              </div>
+              <div style=""background:#ffffff;padding:30px;border:1px solid #eee;"">
+                <p style=""font-size:1rem;color:#333;"">Hola {nombre}, recibimos una solicitud para restablecer tu contraseña.</p>
+                <div style=""text-align:center;margin:25px 0;"">
+                  <a href=""{link}"" style=""background:#978ADD;color:#ffffff;padding:14px 30px;border-radius:30px;text-decoration:none;font-weight:bold;display:inline-block;"">Restablecer contraseña</a>
+                </div>
+                <p style=""font-size:0.85rem;color:#888;"">Este enlace vence en 1 hora. Si no solicitaste este cambio, ignora este correo.</p>
+              </div>
+              <div style=""background:#1A1A2E;padding:16px;text-align:center;border-radius:0 0 20px 20px;"">
+                <p style=""color:#ccc;font-size:0.78rem;margin:0;"">AuraSpa — contacto@auraspa.com</p>
+              </div>
+            </div>";
         }
 
 

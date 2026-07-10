@@ -1,7 +1,8 @@
-import React from 'react';
-import { Link, useNavigate } from 'react-router-dom';
+import React, { useState, useEffect } from 'react';
+import { Link, useNavigate, useLocation } from 'react-router-dom';
 import { useAuth } from '../context/AuthContext';
-import { ShoppingCart, Sparkles } from 'lucide-react';
+import { ShoppingCart, Sparkles, Bell } from 'lucide-react';
+import apiClient from '../services/apiClient';
 import Aurora from './Aurora';
 // cart count
 
@@ -9,6 +10,16 @@ import Aurora from './Aurora';
 const Navbar: React.FC = () => {
   const { user, logout, isAuthenticated } = useAuth();
   const navigate = useNavigate();
+  const location = useLocation();
+  const [noLeidas, setNoLeidas] = useState(0);
+
+  useEffect(() => {
+    if (!isAuthenticated || !user?.id) { setNoLeidas(0); return; }
+    apiClient.get(`/api/dashboard/notificaciones/${user.id}`).then(res => {
+      setNoLeidas(res.data.filter((n: any) => !n.leida).length);
+    }).catch(() => {});
+    // Se re-consulta en cada cambio de ruta (ej. al volver de /notificaciones tras marcar como leídas)
+  }, [isAuthenticated, user?.id, location.pathname]);
 
   const handleLogout = () => { logout(); navigate('/login'); };
 
@@ -34,6 +45,25 @@ const Navbar: React.FC = () => {
                 <span style={{ fontWeight:'bold', color:'var(--aura-navy)', fontSize:'0.9rem' }}>
                   Hola, {user?.nombre}
                 </span>
+
+                {/* Notificaciones — todos los usuarios autenticados */}
+                <button
+                  onClick={() => navigate('/notificaciones')}
+                  className="btn-outline-aura"
+                  style={{ padding:'5px 15px', fontSize:'0.8rem', borderRadius:'25px', position:'relative', display:'inline-flex', alignItems:'center', justifyContent:'center', height:'31px', boxSizing:'border-box' }}
+                >
+                  <Bell size={14} />
+                  {noLeidas > 0 && (
+                    <span style={{
+                      position:'absolute', top:'-6px', right:'-6px', background:'#ef4444', color:'white',
+                      borderRadius:'50%', minWidth:'18px', height:'18px', padding:'0 4px',
+                      display:'flex', alignItems:'center', justifyContent:'center',
+                      fontSize:'0.65rem', fontWeight:'700', lineHeight:1
+                    }}>
+                      {noLeidas > 9 ? '9+' : noLeidas}
+                    </span>
+                  )}
+                </button>
 
                 {/* Servicios — visible para todos pero Catalog maneja quién puede reservar */}
                 <Link

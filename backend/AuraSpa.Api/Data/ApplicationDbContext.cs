@@ -24,6 +24,7 @@ namespace AuraSpa.Api.Data
         // Citas
         public DbSet<Cita>             Citas              { get; set; }
         public DbSet<Resena>           Resenas            { get; set; }
+        public DbSet<ProductoApartado> ProductosApartados { get; set; }
         // Ventas y caja
         public DbSet<SesionCaja>       SesionesCaja       { get; set; }
         public DbSet<Venta>            Ventas             { get; set; }

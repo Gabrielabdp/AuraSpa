@@ -19,14 +19,15 @@ const CarritoProductos: React.FC = () => {
   const [carrito, setCarrito] = useState<ProductoItem[]>(() => {
     try { return JSON.parse(localStorage.getItem('aura_carrito') || '[]'); } catch { return []; }
   });
-  const [sucursales, setSucursales] = useState<string[]>([]);
-  const [sucursal,   setSucursal]   = useState('');
+  const [sucursales,   setSucursales]   = useState<{ idSucursal: number; nombre: string }[]>([]);
+  const [sucursal,     setSucursal]     = useState('');
+  const [idSucursal,   setIdSucursal]   = useState<number | null>(null);
 
   useEffect(() => {
     apiClient.get('/api/catalog/sucursales').then(res => {
-      const nombres = res.data.map((s: any) => s.nombre);
-      setSucursales(nombres);
-      if (nombres.length > 0) setSucursal(nombres[0]);
+      const lista = res.data.map((s: any) => ({ idSucursal: s.idSucursal, nombre: s.nombre }));
+      setSucursales(lista);
+      if (lista.length > 0) { setSucursal(lista[0].nombre); setIdSucursal(lista[0].idSucursal); }
     }).catch(() => {});
   }, []);
   const [reservado,  setReservado]  = useState(false);
@@ -58,11 +59,15 @@ const CarritoProductos: React.FC = () => {
   const itbis    = carrito.reduce((a,p) => a + p.precio * p.cantidad * 0.18, 0);
 
   const reservar = async () => {
-    if (carrito.length === 0) return;
+    if (carrito.length === 0 || !idSucursal) return;
     setProcesando(true);
     try {
-      // Nota: aún no existe un backend de órdenes/reservas de productos;
-      // esta llamada solo registra los puntos de lealtad por el monto reservado.
+      await apiClient.post('/api/reservas', {
+        idSucursal,
+        notas,
+        productos: carrito.map(p => ({ idItem: p.id, cantidad: p.cantidad, precioUnitario: p.precio }))
+      });
+      // Otorga los puntos de lealtad por el monto reservado (independiente del registro de la orden).
       await apiClient.post('/api/lealtad/reservar-productos', { montoTotal: total + itbis });
       // Guardar snapshot para el PDF antes de limpiar
       const snapData  = [...carrito];
@@ -362,10 +367,10 @@ const CarritoProductos: React.FC = () => {
                   <span style={{ fontWeight:'700', color:'var(--aura-navy)', fontSize:'0.92rem' }}>Sucursal de retiro</span>
                 </div>
                 {sucursales.map(s => (
-                  <label key={s} style={{ display:'flex', alignItems:'center', gap:'10px', marginBottom:'10px', cursor:'pointer' }}>
-                    <input type="radio" name="sucursal" checked={sucursal===s} onChange={()=>setSucursal(s)}
+                  <label key={s.idSucursal} style={{ display:'flex', alignItems:'center', gap:'10px', marginBottom:'10px', cursor:'pointer' }}>
+                    <input type="radio" name="sucursal" checked={sucursal===s.nombre} onChange={()=>{ setSucursal(s.nombre); setIdSucursal(s.idSucursal); }}
                       style={{ accentColor:'var(--aura-lavender)', width:'16px', height:'16px' }}/>
-                    <span style={{ fontSize:'0.88rem', color: sucursal===s?'var(--aura-navy)':'#666', fontWeight:sucursal===s?'600':'400' }}>{s}</span>
+                    <span style={{ fontSize:'0.88rem', color: sucursal===s.nombre?'var(--aura-navy)':'#666', fontWeight:sucursal===s.nombre?'600':'400' }}>{s.nombre}</span>
                   </label>
                 ))}
                 <p style={{ color:'#aaa', fontSize:'0.75rem', marginTop:'10px', marginBottom:0 }}>

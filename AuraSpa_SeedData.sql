@@ -189,7 +189,7 @@ DECLARE @pasado DATETIME = DATEADD(DAY,2,CAST(GETDATE() AS DATE));
 DECLARE @tresD  DATETIME = DATEADD(DAY,3,CAST(GETDATE() AS DATE));
 
 INSERT INTO Cita (id_cliente,id_empleado,id_item,id_cabina,id_sucursal,fecha_hora,duracion_minutos,precio_acordado,estado,tipo_masaje,duracion_masaje_min)
-VALUES (1,1,10,3,1,DATEADD(HOUR,10,@manana),90,3500.00,'Aprobada','Masaje piedras','Piedras calientes',90);
+VALUES (1,1,10,3,1,DATEADD(HOUR,10,@manana),90,3500.00,'Confirmada','Masaje piedras','Piedras calientes',90);
 
 INSERT INTO Cita (id_cliente,id_empleado,id_item,id_cabina,id_sucursal,fecha_hora,duracion_minutos,precio_acordado,estado,tipo_facial,tipo_piel)
 VALUES (2,1,7,2,1,DATEADD(HOUR,11,@manana),90,3500.00,'Pendiente','Facial anti-edad','Anti-edad','Seca');

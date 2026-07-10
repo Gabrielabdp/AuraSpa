@@ -193,6 +193,8 @@ CREATE TABLE Usuario (
     activo              BIT           NOT NULL DEFAULT 1,
     verificado          BIT           NOT NULL DEFAULT 0,
     token_verificacion  VARCHAR(255)  NULL,
+    token_recuperacion  VARCHAR(64)   NULL,
+    token_recuperacion_expira DATETIME NULL,
     intentos_fallidos   SMALLINT      NOT NULL DEFAULT 0,
     bloqueado_hasta     DATETIME      NULL,
     fecha_registro      DATETIME      NOT NULL DEFAULT GETDATE(),
@@ -383,7 +385,7 @@ CREATE TABLE Cita (
     tipo_servicio_pelo      VARCHAR(30)    NULL,
     largo_cabello           VARCHAR(15)    NULL,
     CONSTRAINT pk_cita            PRIMARY KEY (id_cita),
-    CONSTRAINT chk_cita_estado    CHECK (estado IN ('Pendiente','Aprobada','Completada','Cancelada','Rechazada')),
+    CONSTRAINT chk_cita_estado    CHECK (estado IN ('Pendiente','Confirmada','Completada','Cancelada','Rechazada')),
     CONSTRAINT fk_cita_cliente    FOREIGN KEY (id_cliente)     REFERENCES Cliente(id_cliente)         ON UPDATE NO ACTION ON DELETE NO ACTION,
     CONSTRAINT fk_cita_empleado   FOREIGN KEY (id_empleado)    REFERENCES Empleado(id_empleado)       ON UPDATE NO ACTION ON DELETE NO ACTION,
     CONSTRAINT fk_cita_item       FOREIGN KEY (id_item)        REFERENCES ItemCatalogo(id_item)        ON UPDATE NO ACTION ON DELETE NO ACTION,
@@ -411,6 +413,27 @@ CREATE TABLE Resena (
     CONSTRAINT chk_resena_calif  CHECK (calificacion BETWEEN 1 AND 5),
     CONSTRAINT fk_resena_cliente FOREIGN KEY (id_cliente) REFERENCES Cliente(id_cliente) ON UPDATE NO ACTION ON DELETE NO ACTION,
     CONSTRAINT fk_resena_cita    FOREIGN KEY (id_cita)    REFERENCES Cita(id_cita)       ON UPDATE NO ACTION ON DELETE NO ACTION
+);
+GO
+
+CREATE TABLE ProductoApartado (
+    id_apartado       BIGINT        NOT NULL IDENTITY(1,1),
+    id_usuario        BIGINT        NOT NULL,
+    id_item           BIGINT        NOT NULL,
+    cantidad          INT           NOT NULL,
+    precio_unitario   DECIMAL(18,2) NOT NULL,
+    subtotal          DECIMAL(18,2) NOT NULL,
+    itbis             DECIMAL(18,2) NOT NULL,
+    total             DECIMAL(18,2) NOT NULL,
+    id_sucursal       BIGINT        NOT NULL,
+    estado            VARCHAR(15)   NOT NULL DEFAULT 'Pendiente',
+    fecha_reserva     DATETIME      NOT NULL DEFAULT GETDATE(),
+    notas             VARCHAR(300)  NULL,
+    CONSTRAINT pk_productoapartado        PRIMARY KEY (id_apartado),
+    CONSTRAINT chk_productoapartado_estado CHECK (estado IN ('Pendiente','Retirado','Cancelado')),
+    CONSTRAINT fk_productoapartado_usuario  FOREIGN KEY (id_usuario)  REFERENCES Usuario(id_usuario)     ON UPDATE NO ACTION ON DELETE NO ACTION,
+    CONSTRAINT fk_productoapartado_item     FOREIGN KEY (id_item)     REFERENCES ItemCatalogo(id_item)   ON UPDATE NO ACTION ON DELETE NO ACTION,
+    CONSTRAINT fk_productoapartado_sucursal FOREIGN KEY (id_sucursal) REFERENCES Sucursal(id_sucursal)   ON UPDATE NO ACTION ON DELETE NO ACTION
 );
 GO
 

@@ -2,9 +2,11 @@ using AuraSpa.Api.Data;
 using AuraSpa.Api.DTOs;
 using AuraSpa.Api.Helpers;
 using AuraSpa.Api.Models;
+using AuraSpa.Api.Services;
 using Microsoft.AspNetCore.Authorization;
 using Microsoft.AspNetCore.Mvc;
 using Microsoft.EntityFrameworkCore;
+using System.Globalization;
 using System.Security.Claims;
 
 namespace AuraSpa.Api.Controllers
@@ -15,7 +17,57 @@ namespace AuraSpa.Api.Controllers
     public class CitasController : ControllerBase
     {
         private readonly ApplicationDbContext _ctx;
-        public CitasController(ApplicationDbContext ctx) => _ctx = ctx;
+        private readonly EmailService _emailService;
+        private readonly ILogger<CitasController> _logger;
+        public CitasController(ApplicationDbContext ctx, EmailService emailService, ILogger<CitasController> logger)
+        {
+            _ctx = ctx;
+            _emailService = emailService;
+            _logger = logger;
+        }
+
+        private static string FormatearFecha(DateTime fechaHora)
+            => fechaHora.ToString("dd 'de' MMMM 'de' yyyy", new CultureInfo("es-DO"));
+
+        private async Task NotificarClienteAsync(long idUsuarioCliente, long idCita, string titulo, string mensaje)
+        {
+            _ctx.Notificaciones.Add(new Notificacion
+            {
+                IdUsuario  = idUsuarioCliente,
+                IdCita     = idCita,
+                Tipo       = "Cita",
+                Titulo     = titulo,
+                Mensaje    = mensaje,
+                FechaEnvio = DateTime.Now,
+                Leida      = false
+            });
+            await _ctx.SaveChangesAsync();
+        }
+
+        private static string ConstruirHtmlCita(string mensajePrincipal, string servicio, DateTime fechaHora)
+        {
+            var culturaEs = new CultureInfo("es-DO");
+            var fecha = fechaHora.ToString("dd 'de' MMMM 'de' yyyy", culturaEs);
+            var hora  = fechaHora.ToString("hh:mm tt", culturaEs);
+            return $@"
+            <div style=""font-family:'Segoe UI',Tahoma,Geneva,Verdana,sans-serif;max-width:520px;margin:0 auto;"">
+              <div style=""background:#1A1A2E;padding:30px;text-align:center;border-radius:20px 20px 0 0;"">
+                <span style=""color:#ffffff;font-size:1.6rem;font-weight:bold;"">AURA</span>
+                <span style=""color:#978ADD;font-size:1.6rem;font-weight:bold;""> Spa</span>
+              </div>
+              <div style=""background:#ffffff;padding:30px;border:1px solid #eee;"">
+                <p style=""font-size:1rem;color:#333;"">{mensajePrincipal}</p>
+                <div style=""background:#f8f6ff;border-radius:15px;padding:20px;margin-top:20px;"">
+                  <p style=""margin:0 0 8px;color:#666;font-size:0.9rem;""><strong>Servicio:</strong> {servicio}</p>
+                  <p style=""margin:0 0 8px;color:#666;font-size:0.9rem;""><strong>Fecha:</strong> {fecha}</p>
+                  <p style=""margin:0;color:#666;font-size:0.9rem;""><strong>Hora:</strong> {hora}</p>
+                </div>
+              </div>
+              <div style=""background:#1A1A2E;padding:16px;text-align:center;border-radius:0 0 20px 20px;"">
+                <p style=""color:#ccc;font-size:0.78rem;margin:0;"">AuraSpa — contacto@auraspa.com</p>
+              </div>
+            </div>";
+        }
 
         // GET /api/citas/mis-citas
         [HttpGet("mis-citas")]
@@ -109,6 +161,32 @@ namespace AuraSpa.Api.Controllers
 
             _ctx.Citas.Add(cita);
             await _ctx.SaveChangesAsync();
+
+            var usuarioCliente = await _ctx.Usuarios.FirstOrDefaultAsync(u => u.IdCliente == cita.IdCliente);
+
+            if (usuarioCliente != null)
+            {
+                var mensajeNotif = $"Tu solicitud de cita para {item?.Nombre ?? "servicio"} el {FormatearFecha(cita.FechaHora)} fue registrada exitosamente.";
+                await NotificarClienteAsync(usuarioCliente.IdUsuario, cita.IdCita, "Solicitud recibida", mensajeNotif);
+            }
+
+            try
+            {
+                if (usuarioCliente != null && !string.IsNullOrEmpty(usuarioCliente.Email))
+                {
+                    var html = ConstruirHtmlCita(
+                        "¡Hola! Recibimos tu solicitud de cita. Nuestro equipo la revisará y te avisaremos apenas quede confirmada.",
+                        item?.Nombre ?? "Servicio", cita.FechaHora);
+                    await _emailService.SendEmailAsync(usuarioCliente.Email, usuarioCliente.Nombre,
+                        "AuraSpa — Tu solicitud fue recibida", html);
+                }
+            }
+            catch (Exception ex)
+            {
+                // El envío del correo no debe interrumpir la creación de la cita
+                _logger.LogError(ex, "No se pudo enviar el correo de solicitud recibida para la cita {IdCita}", cita.IdCita);
+            }
+
             return Ok(new { cita.IdCita, cita.Estado, cita.FechaHora });
         }
 
@@ -123,8 +201,8 @@ namespace AuraSpa.Api.Controllers
             if (cita == null || cita.IdCliente != usuario?.IdCliente)
                 return NotFound();
 
-            if (cita.Estado != "Pendiente" && cita.Estado != "Aprobada")
-                return BadRequest("Solo se pueden cancelar citas Pendientes o Aprobadas.");
+            if (cita.Estado != "Pendiente" && cita.Estado != "Confirmada")
+                return BadRequest("Solo se pueden cancelar citas Pendientes o Confirmadas.");
 
             // Regla 72 horas
             if ((cita.FechaHora - DateTime.Now).TotalHours < 72)
@@ -132,6 +210,14 @@ namespace AuraSpa.Api.Controllers
 
             cita.Estado = "Cancelada";
             await _ctx.SaveChangesAsync();
+
+            if (usuario != null)
+            {
+                var itemCancelado = await _ctx.ItemsCatalogo.FindAsync(cita.IdItem);
+                var mensajeNotif = $"Tu cita de {itemCancelado?.Nombre ?? "servicio"} el {FormatearFecha(cita.FechaHora)} fue cancelada exitosamente.";
+                await NotificarClienteAsync(usuario.IdUsuario, cita.IdCita, "Cita cancelada", mensajeNotif);
+            }
+
             return Ok(new { message = "Cita cancelada exitosamente." });
         }
 
@@ -196,9 +282,7 @@ namespace AuraSpa.Api.Controllers
             var cita = await _ctx.Citas.FindAsync(id);
             if (cita == null) return NotFound();
 
-            var estadosValidos = new[] { "Pendiente","Aprobada","Confirmada","Completada","Cancelada","Rechazada" };
-            // Normalizar: "Confirmada" = "Aprobada" para compatibilidad entre capas
-            if (nuevoEstado == "Confirmada") nuevoEstado = "Aprobada";
+            var estadosValidos = new[] { "Pendiente","Confirmada","Completada","Cancelada","Rechazada" };
             if (!estadosValidos.Contains(nuevoEstado)) return BadRequest("Estado inválido.");
 
             if (nuevoEstado == "Completada" && cita.Estado != "Completada")
@@ -209,6 +293,45 @@ namespace AuraSpa.Api.Controllers
 
             cita.Estado = nuevoEstado;
             await _ctx.SaveChangesAsync();
+
+            if (nuevoEstado == "Confirmada" || nuevoEstado == "Rechazada")
+            {
+                var usuarioCliente = await _ctx.Usuarios.FirstOrDefaultAsync(u => u.IdCliente == cita.IdCliente);
+                var itemCita = await _ctx.ItemsCatalogo.FindAsync(cita.IdItem);
+                var esConfirmada = nuevoEstado == "Confirmada";
+                var servicioNombre = itemCita?.Nombre ?? "servicio";
+                var fechaFormateada = FormatearFecha(cita.FechaHora);
+
+                if (usuarioCliente != null)
+                {
+                    var tituloNotif = esConfirmada ? "Cita confirmada" : "Cita no disponible";
+                    var mensajeNotif = esConfirmada
+                        ? $"Tu cita de {servicioNombre} el {fechaFormateada} ha sido confirmada. ¡Te esperamos!"
+                        : $"Lo sentimos, tu cita de {servicioNombre} el {fechaFormateada} no pudo ser confirmada.";
+                    await NotificarClienteAsync(usuarioCliente.IdUsuario, cita.IdCita, tituloNotif, mensajeNotif);
+                }
+
+                try
+                {
+                    if (usuarioCliente != null && !string.IsNullOrEmpty(usuarioCliente.Email))
+                    {
+                        var html = ConstruirHtmlCita(
+                            esConfirmada
+                                ? "¡Buenas noticias! Tu cita fue confirmada. Te esperamos en la fecha y hora acordadas."
+                                : "Lamentablemente no pudimos confirmar tu cita para el horario solicitado. Contáctanos o agenda otro horario disponible.",
+                            servicioNombre, cita.FechaHora);
+                        await _emailService.SendEmailAsync(usuarioCliente.Email, usuarioCliente.Nombre,
+                            esConfirmada ? "AuraSpa — Tu cita fue confirmada" : "AuraSpa — Tu cita no pudo ser confirmada",
+                            html);
+                    }
+                }
+                catch (Exception ex)
+                {
+                    // El envío del correo no debe interrumpir el cambio de estado
+                    _logger.LogError(ex, "No se pudo enviar el correo de cambio de estado para la cita {IdCita}", cita.IdCita);
+                }
+            }
+
             return Ok(new { cita.IdCita, cita.Estado });
         }
     }

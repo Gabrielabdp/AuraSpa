@@ -19,6 +19,8 @@ namespace AuraSpa.Api.Models
         [Column("verificado")] public bool Verificado { get; set; } = false;
         [Column("intentos_fallidos")] public short IntentosFallidos { get; set; } = 0;
         [Column("bloqueado_hasta")] public DateTime? BloqueadoHasta { get; set; }
+        [Column("token_recuperacion")] public string? TokenRecuperacion { get; set; }
+        [Column("token_recuperacion_expira")] public DateTime? TokenRecuperacionExpira { get; set; }
         [Column("fecha_registro")] public DateTime FechaRegistro { get; set; } = DateTime.Now;
         [Column("ultimo_acceso")] public DateTime? UltimoAcceso { get; set; }
         // Navegacion

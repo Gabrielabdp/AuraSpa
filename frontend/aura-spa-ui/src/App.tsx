@@ -15,7 +15,9 @@ import Notificaciones from './pages/Notificaciones';
 import Beneficios from './pages/Beneficios';
 import Perfil from './pages/Perfil';
 import MisCitas from './pages/MisCitas';
+import MisReservas from './pages/MisReservas';
 import RecuperarContrasena from './pages/RecuperarContrasena';
+import RestablecerContrasena from './pages/RestablecerContrasena';
 import Clientes from './pages/Clientes';
 import Reportes from './pages/Reportes';
 import Core from './pages/Core';
@@ -66,6 +68,7 @@ function App() {
           <Route path="/login"               element={<Login />} />
           <Route path="/registro"            element={<><Navbar /><Registro /></>} />
           <Route path="/recuperar-contrasena" element={<RecuperarContrasena />} />
+          <Route path="/restablecer-contrasena" element={<RestablecerContrasena />} />
           <Route path="/verificacion-2fa"    element={<Verificacion2FA />} />
           <Route path="/"                    element={<><Navbar /><Home /></>} />
           <Route path="/catalog"             element={<><Navbar /><Catalog /></>} />
@@ -87,6 +90,9 @@ function App() {
           } />
           <Route path="/mis-citas" element={
             <PrivateRoute roles={['Cliente']}><><Navbar /><MisCitas /></></PrivateRoute>
+          } />
+          <Route path="/mis-reservas" element={
+            <PrivateRoute roles={['Cliente']}><><Navbar /><MisReservas /></></PrivateRoute>
           } />
           <Route path="/dashboard/client" element={
             <PrivateRoute roles={['Cliente']}><><Navbar /><DashboardClient /></></PrivateRoute>

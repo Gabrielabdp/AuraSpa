@@ -47,7 +47,7 @@ const GestionCitas: React.FC = () => {
         servicio: c.item?.nombre ?? '',
         especialista: c.empleado ? `${c.empleado.nombres} ${c.empleado.apellidos}` : 'Sin asignar',
         fechaHora: c.fechaHora,
-        estado: (c.estado === 'Aprobada' ? 'Confirmada' : c.estado) as Cita['estado'],
+        estado: c.estado as Cita['estado'],
         precioAcordado: c.precioAcordado,
       })));
     } catch {

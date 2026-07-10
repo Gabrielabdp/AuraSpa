@@ -58,6 +58,31 @@ namespace AuraSpa.Api.DTOs
         public decimal PrecioUnitario  { get; set; }
         public decimal DescuentoLinea  { get; set; } = 0;
     }
+
+    public class RecuperarContrasenaDto
+    {
+        public string Email { get; set; } = string.Empty;
+    }
+
+    public class RestablecerContrasenaDto
+    {
+        public string Token         { get; set; } = string.Empty;
+        public string NuevaPassword { get; set; } = string.Empty;
+    }
+
+    public class CrearReservaDto
+    {
+        public long    IdSucursal { get; set; }
+        public string? Notas      { get; set; }
+        public List<ReservaItemDto> Productos { get; set; } = new();
+    }
+
+    public class ReservaItemDto
+    {
+        public long    IdItem         { get; set; }
+        public int     Cantidad       { get; set; }
+        public decimal PrecioUnitario { get; set; }
+    }
 }
 
     public class ActualizarPerfilDto

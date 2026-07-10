@@ -1,6 +1,6 @@
 import React, { useEffect, useState } from 'react';
 import { useAuth } from '../context/AuthContext';
-import { Calendar, ShoppingBag, Clock, Heart, Bell } from 'lucide-react';
+import { Calendar, ShoppingBag, Clock, Heart, Bell, Package } from 'lucide-react';
 import { useNavigate } from 'react-router-dom';
 import apiClient from '../services/apiClient';
 
@@ -22,10 +22,10 @@ const DashboardClient: React.FC = () => {
   const [ultimaNotif, setUltimaNotif] = useState<NotifResumen | null>(null);
 
   useEffect(() => {
-    // Carga la próxima cita pendiente o aprobada
+    // Carga la próxima cita pendiente o confirmada
     apiClient.get('/api/citas/mis-citas').then(res => {
       const futuras = res.data.filter((c: any) =>
-        (c.estado === 'Pendiente' || c.estado === 'Aprobada') && new Date(c.fechaHora) > new Date()
+        (c.estado === 'Pendiente' || c.estado === 'Confirmada') && new Date(c.fechaHora) > new Date()
       ).sort((a: any, b: any) => new Date(a.fechaHora).getTime() - new Date(b.fechaHora).getTime());
 
       if (futuras.length > 0) {
@@ -97,6 +97,14 @@ const DashboardClient: React.FC = () => {
               Sin citas próximas
             </div>
           )}
+        </div>
+
+        <div className="card-aura" style={{ cursor: 'pointer', padding: '40px', textAlign: 'center', borderBottom: '6px solid var(--aura-navy)' }} onClick={() => navigate('/mis-reservas')}>
+          <div style={{ background: '#f0ecff', width: '80px', height: '80px', borderRadius: '50%', display: 'flex', alignItems: 'center', justifyContent: 'center', margin: '0 auto 25px', color: 'var(--aura-navy)' }}>
+            <Package size={32} />
+          </div>
+          <h3 style={{ marginBottom: '15px', fontWeight: 'bold' }}>Mis Reservas</h3>
+          <p style={{ color: '#666' }}>Revisa el historial de productos que has reservado.</p>
         </div>
       </div>
 
