@@ -7,6 +7,7 @@ import Catalog from './pages/Catalog';
 import DashboardClient from './pages/DashboardClient';
 import DashboardStaff from './pages/DashboardStaff';
 import Caja from './pages/Caja';
+import CuentasPorCobrar from './pages/CuentasPorCobrar';
 import Registro from './pages/Registro';
 import Verificacion2FA from './pages/Verificacion2FA';
 import Agendamiento from './pages/Agendamiento';
@@ -110,6 +111,11 @@ function App() {
               denyMessage="El módulo de Caja es exclusivo para Cajeros y Administradores. Como Especialista, tu área es la gestión de citas.">
               <Caja />
             </PrivateRoute>
+          } />
+
+          {/* Cuentas por Cobrar — Admin y Cajero */}
+          <Route path="/cuentas-por-cobrar" element={
+            <PrivateRoute roles={['Admin','Cajero']}><><Navbar /><CuentasPorCobrar /></></PrivateRoute>
           } />
 
           {/* Gestión de citas — todos los staff */}

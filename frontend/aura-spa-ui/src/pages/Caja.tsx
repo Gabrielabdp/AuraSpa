@@ -4,21 +4,20 @@ import { useNavigate } from 'react-router-dom';
 import apiClient from '../services/apiClient';
 import jsPDF from 'jspdf';
 import {
-  ShoppingCart, BarChart2, FileText, CreditCard, DoorOpen,
+  ShoppingCart, BarChart2, FileText, DoorOpen,
   CheckCircle, Trash2, Wifi, WifiOff, Send, LogOut, Clock,
   Search, CreditCard as CardIcon, Banknote, ArrowDownLeft
 } from 'lucide-react';
 
 // ── TIPOS ─────────────────────────────────────────────────────
 interface CartItem { id:number; descripcion:string; cantidad:number; precioUnitario:number; itbis:number; subtotal:number; idEmpleado?:number; }
-type Seccion = 'apertura'|'ventas'|'movimientos'|'cotizaciones'|'cxc'|'cierre';
+type Seccion = 'apertura'|'ventas'|'movimientos'|'cotizaciones'|'cierre';
 type Turno = 'Matutino (7AM-1PM)'|'Vespertino (1PM-6PM)'|'Nocturno (6PM-11PM)'|'Personalizado';
 
 interface ServicioApi { id:number; nombre:string; precio:number; categoria:string; }
 interface EmpleadoApi { idEmpleado:number; nombreCompleto:string; }
 interface ClienteApi { idCliente:number; nombre:string; numeroDocumento:string; }
 interface MovimientoApi { id:number; concepto:string; fecha:string; tipo:string; condicionPago:string; usuario:string; monto:number; estado:string; }
-interface CxcApi { id:number; ventaId:string; clienteNombre:string; montoTotal:number; montoPagado:number; saldoPendiente:number; fechaVencimiento:string; estado:string; }
 
 // Único método de pago real por botón — mapeado a MetodoPago.id_metodo_pago de la BD
 const METODO_PAGO_ID: Record<string, number> = { Efectivo:1, Tarjeta:2, Transferencia:4 };
@@ -29,7 +28,6 @@ const formatFechaHora = (iso:string) => {
   const d = new Date(iso);
   return `${d.toLocaleDateString('es-DO')} ${d.toLocaleTimeString('es-DO',{hour:'2-digit',minute:'2-digit'})}`;
 };
-const formatFecha = (iso:string) => new Date(iso).toLocaleDateString('es-DO');
 const inputStyle:React.CSSProperties = { width:'100%', padding:'10px 15px', borderRadius:'15px', border:'1px solid #e8e0f5', outline:'none', background:'#fcfcfc', fontSize:'0.88rem', boxSizing:'border-box' };
 const labelStyle:React.CSSProperties = { display:'block', marginBottom:'6px', fontSize:'0.82rem', color:'var(--aura-gray)', fontWeight:'500' };
 
@@ -255,33 +253,20 @@ const Caja:React.FC = () => {
 
   useEffect(() => { if(seccion==='movimientos') cargarMovimientos(); }, [seccion, cargarMovimientos]);
 
-  // CxC
-  const [cxcClienteFiltro, setCxcClienteFiltro] = useState('');
-  const [cxcFacturaFiltro, setCxcFacturaFiltro] = useState('');
-  const [cxcEstadoFiltro, setCxcEstadoFiltro] = useState('Todos');
-  const [abonoModal, setAbonoModal] = useState<{id:number;nombre:string;saldo:number}|null>(null);
-  const [abonoMonto, setAbonoMonto] = useState('');
-  const [cxcData,    setCxcData]    = useState<CxcApi[]>([]);
-
-  const cargarCxc = useCallback(async () => {
-    try {
-      const res = await apiClient.get('/api/caja/cxc');
-      setCxcData(res.data);
-    } catch { setCxcData([]); }
-  }, []);
-
-  useEffect(() => { if(seccion==='cxc') cargarCxc(); }, [seccion, cargarCxc]);
-
   // Cierre
   const [montoCierre,      setMontoCierre]      = useState('');
   const [montoCierreError, setMontoCierreError] = useState('');
   const [cierreSuccess,    setCierreSuccess]    = useState(false);
   const [observacionCierre, setObservacionCierre] = useState('');
   const [ventasSesion, setVentasSesion] = useState<{total:number;idMetodoPago:number|null;estado:string}[]>([]);
+  const [cxcPendienteTotal, setCxcPendienteTotal] = useState(0);
 
   useEffect(() => {
     if (seccion==='cierre' && idSesionCaja) {
       apiClient.get(`/api/caja/ventas/${idSesionCaja}`).then(res => setVentasSesion(res.data)).catch(() => setVentasSesion([]));
+      apiClient.get('/api/caja/cxc').then(res => {
+        setCxcPendienteTotal(res.data.reduce((a:number,c:any)=>a+c.saldoPendiente,0));
+      }).catch(() => setCxcPendienteTotal(0));
     }
   }, [seccion, idSesionCaja]);
 
@@ -430,27 +415,6 @@ const Caja:React.FC = () => {
     registrarVentaEnBackend();
   };
 
-  const calcularDiasMora = (fechaVencimiento:string) => {
-    const dias = Math.floor((Date.now()-new Date(fechaVencimiento).getTime())/(1000*60*60*24));
-    return dias > 0 ? dias : 0;
-  };
-
-  const calcularMora = (cxc: CxcApi) => {
-    const dias = calcularDiasMora(cxc.fechaVencimiento);
-    return dias > 0 ? Math.round(cxc.saldoPendiente * 0.03 * dias) : 0; // 3% mensual
-  };
-
-  const registrarAbono = async () => {
-    if(!abonoModal||!abonoMonto) return;
-    const monto = parseFloat(abonoMonto);
-    if(isNaN(monto)||monto<=0||monto>abonoModal.saldo) return;
-    try {
-      await apiClient.post(`/api/caja/cxc/${abonoModal.id}/abono`, { monto });
-      await cargarCxc();
-    } catch {}
-    setAbonoModal(null); setAbonoMonto('');
-  };
-
   const ventasNoCanceladas = ventasSesion.filter(v=>v.estado!=='Cancelada');
   const totalVentasTurno   = ventasNoCanceladas.reduce((a,v)=>a+v.total,0);
   const ventasEfectivo     = ventasNoCanceladas.filter(v=>v.idMetodoPago===METODO_PAGO_ID.Efectivo).reduce((a,v)=>a+v.total,0);
@@ -463,36 +427,12 @@ const Caja:React.FC = () => {
     {id:'ventas',      label:'Ventas',             icono:<ShoppingCart size={16}/>},
     {id:'movimientos', label:'Movimientos',        icono:<BarChart2 size={16}/>},
     {id:'cotizaciones',label:'Cotizaciones',       icono:<FileText size={16}/>},
-    {id:'cxc',         label:'Cuentas x Cobrar',  icono:<CreditCard size={16}/>},
     {id:'cierre',      label:'Cerrar Caja',        icono:<LogOut size={16}/>},
   ];
 
   return (
     <div style={{minHeight:'100vh',background:'var(--aura-beige)'}}>
       {modalTarjeta&&<ModalTarjeta total={totVenta} condicion={ventaCondicion} onConfirm={confirmarPagoTarjeta} onCancel={()=>setModalTarjeta(false)}/>}
-
-      {/* Abono modal */}
-      {abonoModal&&(
-        <div style={{position:'fixed',inset:0,background:'rgba(0,0,0,0.5)',display:'flex',alignItems:'center',justifyContent:'center',zIndex:1000}}>
-          <div className="card-aura" style={{width:'380px',padding:'35px',borderRadius:'22px'}}>
-            <h3 style={{color:'var(--aura-navy)',fontWeight:'bold',marginBottom:'6px'}}>Registrar Abono</h3>
-            <p style={{color:'#888',fontSize:'0.85rem',marginBottom:'20px'}}>{abonoModal.nombre}</p>
-            <div style={{background:'#fef2f2',borderRadius:'12px',padding:'14px',marginBottom:'16px',display:'flex',justifyContent:'space-between',fontSize:'0.88rem'}}>
-              <span style={{color:'#666'}}>Saldo pendiente:</span>
-              <strong style={{color:'#ef4444'}}>RD$ {fmt(abonoModal.saldo)}</strong>
-            </div>
-            <div style={{marginBottom:'20px'}}>
-              <label style={labelStyle}>Monto del abono (RD$)</label>
-              <input type="text" value={abonoMonto} onChange={e=>{if(/^\d*\.?\d*$/.test(e.target.value))setAbonoMonto(e.target.value);}}
-                placeholder="0.00" style={inputStyle} autoFocus/>
-            </div>
-            <div style={{display:'flex',gap:'10px'}}>
-              <button onClick={registrarAbono} className="btn-AuraSpa" style={{flex:1,padding:'12px'}}>Registrar</button>
-              <button onClick={()=>{setAbonoModal(null);setAbonoMonto('');}} className="btn-outline-aura" style={{flex:1,padding:'12px'}}>Cancelar</button>
-            </div>
-          </div>
-        </div>
-      )}
 
       {/* Header */}
       <div style={{background:'white',borderBottom:'1px solid #f0edf5',padding:'16px 40px',display:'flex',alignItems:'center',justifyContent:'space-between',flexWrap:'wrap',gap:'15px'}}>
@@ -859,66 +799,6 @@ const Caja:React.FC = () => {
           </div>
         )}
 
-        {/* ── CxC — botones funcionando ── */}
-        {seccion==='cxc'&&(
-          <div>
-            <div className="card-aura" style={{padding:'25px',marginBottom:'20px'}}>
-              <h4 style={{fontWeight:'700',color:'var(--aura-navy)',marginBottom:'20px'}}>Filtros</h4>
-              <div style={{display:'grid',gridTemplateColumns:'repeat(auto-fill,minmax(160px,1fr))',gap:'15px',marginBottom:'15px'}}>
-                <div><label style={labelStyle}>Cliente</label><input type="text" value={cxcClienteFiltro} onChange={e=>setCxcClienteFiltro(e.target.value)} placeholder="Nombre del cliente" style={inputStyle}/></div>
-                <div><label style={labelStyle}>No. Factura</label><input type="text" value={cxcFacturaFiltro} onChange={e=>setCxcFacturaFiltro(e.target.value)} placeholder="FAC-001" style={inputStyle}/></div>
-                <div><label style={labelStyle}>Estado</label><select value={cxcEstadoFiltro} onChange={e=>setCxcEstadoFiltro(e.target.value)} style={inputStyle}><option>Todos</option><option>Pendiente</option><option>Parcial</option><option>Saldada</option></select></div>
-              </div>
-              <button onClick={()=>{}} className="btn-AuraSpa" style={{padding:'10px 25px'}}>Aplicar Filtro</button>
-            </div>
-            <div className="card-aura" style={{padding:'25px'}}>
-              <table style={{width:'100%',borderCollapse:'collapse',fontSize:'0.85rem'}}>
-                <thead>
-                  <tr style={{background:'#EDE8F5'}}>
-                    {['Factura','Cliente','Total','Pagado','Saldo','Vencimiento','Mora','Estado','Acciones'].map(h=>(
-                      <th key={h} style={{padding:'10px 14px',textAlign:'left',fontWeight:'600',color:'var(--aura-navy)',borderBottom:'2px solid #e8e0f5'}}>{h}</th>
-                    ))}
-                  </tr>
-                </thead>
-                <tbody>
-                  {cxcData.filter(cx=>(cxcClienteFiltro===''||cx.clienteNombre.toLowerCase().includes(cxcClienteFiltro.toLowerCase()))&&(cxcFacturaFiltro===''||cx.ventaId.toLowerCase().includes(cxcFacturaFiltro.toLowerCase()))&&(cxcEstadoFiltro==='Todos'||cx.estado===cxcEstadoFiltro)).length===0?(
-                    <tr><td colSpan={9} style={{padding:'30px',textAlign:'center',color:'#bbb',fontSize:'0.88rem'}}>Sin cuentas por cobrar pendientes</td></tr>
-                  ):cxcData.filter(cx=>(cxcClienteFiltro===''||cx.clienteNombre.toLowerCase().includes(cxcClienteFiltro.toLowerCase()))&&(cxcFacturaFiltro===''||cx.ventaId.toLowerCase().includes(cxcFacturaFiltro.toLowerCase()))&&(cxcEstadoFiltro==='Todos'||cx.estado===cxcEstadoFiltro)).map((c,i)=>(
-                    <tr key={c.id} style={{borderBottom:'1px solid #f0edf5',background:i%2===0?'white':'#faf9ff'}}>
-                      <td style={{padding:'10px 14px',fontWeight:'500'}}>{c.ventaId}</td>
-                      <td style={{padding:'10px 14px'}}>{c.clienteNombre}</td>
-                      <td style={{padding:'10px 14px'}}>RD$ {fmt(c.montoTotal)}</td>
-                      <td style={{padding:'10px 14px',color:'#22c55e',fontWeight:'600'}}>RD$ {fmt(c.montoPagado)}</td>
-                      <td style={{padding:'10px 14px',color:'#ef4444',fontWeight:'600'}}>RD$ {fmt(c.saldoPendiente)}</td>
-                      <td style={{padding:'10px 14px',color:'var(--aura-gray)'}}>{formatFecha(c.fechaVencimiento)}</td>
-                      <td style={{padding:'10px 14px'}}>
-                        {calcularDiasMora(c.fechaVencimiento)>0?<span style={{color:'#ef4444',fontWeight:'600'}}>{calcularDiasMora(c.fechaVencimiento)}d · +RD$ {calcularMora(c).toLocaleString('es-DO')}</span>:<span style={{color:'#22c55e'}}>Al día</span>}
-                      </td>
-                      <td style={{padding:'10px 14px'}}>
-                        <span style={{background:c.estado==='Parcial'?'#fffbeb':c.estado==='Saldada'?'#f0fdf4':'#fef2f2',
-                          color:c.estado==='Parcial'?'#f59e0b':c.estado==='Saldada'?'#22c55e':'#ef4444',
-                          padding:'3px 10px',borderRadius:'20px',fontSize:'0.78rem',fontWeight:'600'}}>{c.estado}</span>
-                      </td>
-                      <td style={{padding:'10px 14px'}}>
-                        {c.saldoPendiente>0&&(
-                          <button onClick={()=>setAbonoModal({id:c.id,nombre:c.clienteNombre,saldo:c.saldoPendiente})}
-                            className="btn-AuraSpa" style={{padding:'5px 14px',fontSize:'0.78rem',whiteSpace:'nowrap'}}>
-                            Registrar Abono
-                          </button>
-                        )}
-                      </td>
-                    </tr>
-                  ))}
-                </tbody>
-              </table>
-              <div style={{display:'flex',justifyContent:'space-between',marginTop:'15px',paddingTop:'15px',borderTop:'1px solid #f0edf5',fontSize:'0.88rem'}}>
-                <span>Deudores activos: <strong>{cxcData.filter(c=>c.saldoPendiente>0).length}</strong></span>
-                <span>Total pendiente: <strong style={{color:'#ef4444'}}>RD$ {fmt(cxcData.reduce((a,c)=>a+c.saldoPendiente,0))}</strong></span>
-              </div>
-            </div>
-          </div>
-        )}
-
         {/* ── CIERRE ── */}
         {seccion==='cierre'&&(
           <div style={{display:'flex',justifyContent:'center',padding:'40px 0'}}>
@@ -948,7 +828,7 @@ const Caja:React.FC = () => {
                       {label:'Ventas en efectivo:',        valor:`RD$ ${fmt(ventasEfectivo)}`,        color:'inherit'},
                       {label:'Ventas con tarjeta:',        valor:`RD$ ${fmt(ventasTarjeta)}`,         color:'inherit'},
                       {label:'Ventas por transferencia:',  valor:`RD$ ${fmt(ventasTransferencia)}`,   color:'inherit'},
-                      {label:'CxC generadas:',             valor:`RD$ ${fmt(cxcData.reduce((a,c)=>a+c.saldoPendiente,0))}`, color:'#f59e0b'},
+                      {label:'CxC pendientes (total):',    valor:`RD$ ${fmt(cxcPendienteTotal)}`, color:'#f59e0b'},
                       {label:'El sistema reporta:',        valor:`RD$ ${fmt(fondoCaja+totalVentasTurno)}`, color:'var(--aura-navy)'},
                     ];
                     return filas.map((r,i)=>(

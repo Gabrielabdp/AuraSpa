@@ -1,6 +1,6 @@
 import React, { useEffect, useState } from 'react';
 import { useAuth } from '../context/AuthContext';
-import { Calculator, Users, Settings, BarChart3, Bell, CalendarCheck, Calendar } from 'lucide-react';
+import { Calculator, Users, Settings, BarChart3, Bell, CalendarCheck, Calendar, CreditCard } from 'lucide-react';
 import { useNavigate } from 'react-router-dom';
 import apiClient from '../services/apiClient';
 
@@ -127,6 +127,17 @@ const DashboardStaff: React.FC = () => {
               <h3 style={{ fontWeight: 'bold' }}>Clientes</h3>
             </div>
             <p style={{ color: '#666', marginBottom: '20px' }}>Administra la base de clientes, historiales y preferencias.</p>
+          </div>
+        )}
+
+        {/* Cuentas por Cobrar — Admin y Cajero */}
+        {(esAdmin || esCajero) && (
+          <div className="card-aura" style={{ borderBottom: '6px solid #ef4444', cursor: 'pointer' }} onClick={() => navigate('/cuentas-por-cobrar')}>
+            <div style={{ display: 'flex', alignItems: 'center', gap: '20px', marginBottom: '20px' }}>
+              <div style={{ background: '#fef2f2', padding: '15px', borderRadius: '20px', color: '#ef4444' }}><CreditCard size={28} /></div>
+              <h3 style={{ fontWeight: 'bold' }}>Cuentas por Cobrar</h3>
+            </div>
+            <p style={{ color: '#666', marginBottom: '20px' }}>Gestiona los pagos pendientes y abonos de clientes.</p>
           </div>
         )}
 
