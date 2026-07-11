@@ -221,6 +221,68 @@ namespace AuraSpa.Api.Controllers
             return Ok(new { message = "Cita cancelada exitosamente." });
         }
 
+        // PUT /api/citas/{id}/reprogramar
+        [HttpPut("{id}/reprogramar")]
+        public async Task<IActionResult> Reprogramar(long id, [FromBody] ReprogramarCitaDto dto)
+        {
+            var idUsuario = long.Parse(User.FindFirstValue(ClaimTypes.NameIdentifier)!);
+            var usuario   = await _ctx.Usuarios.FindAsync(idUsuario);
+            var cita      = await _ctx.Citas.FindAsync(id);
+
+            if (cita == null || cita.IdCliente != usuario?.IdCliente)
+                return NotFound();
+
+            if (cita.Estado != "Pendiente" && cita.Estado != "Confirmada")
+                return BadRequest("Solo se pueden reprogramar citas Pendientes o Confirmadas.");
+
+            // Regla 72 horas sobre la fecha original
+            if ((cita.FechaHora - DateTime.Now).TotalHours < 72)
+                return BadRequest("No puedes reprogramar con menos de 72 horas de anticipación.");
+
+            if (dto.FechaHora <= DateTime.Now)
+                return BadRequest("La nueva fecha debe ser futura.");
+
+            if (cita.IdEmpleado.HasValue)
+            {
+                var conflicto = await _ctx.Citas.AnyAsync(c =>
+                    c.IdCita     != cita.IdCita &&
+                    c.IdEmpleado == cita.IdEmpleado &&
+                    c.FechaHora  == dto.FechaHora  &&
+                    c.Estado     != "Cancelada"     &&
+                    c.Estado     != "Rechazada");
+
+                if (conflicto) return BadRequest("El especialista ya tiene una cita a esa hora.");
+            }
+
+            cita.FechaHora = dto.FechaHora;
+            await _ctx.SaveChangesAsync();
+
+            if (usuario != null)
+            {
+                var item = await _ctx.ItemsCatalogo.FindAsync(cita.IdItem);
+                var mensajeNotif = $"Tu cita de {item?.Nombre ?? "servicio"} fue reprogramada para el {FormatearFecha(cita.FechaHora)}.";
+                await NotificarClienteAsync(usuario.IdUsuario, cita.IdCita, "Cita reprogramada", mensajeNotif);
+
+                try
+                {
+                    if (!string.IsNullOrEmpty(usuario.Email))
+                    {
+                        var html = ConstruirHtmlCita(
+                            "Tu cita fue reprogramada exitosamente. Estos son los nuevos detalles:",
+                            item?.Nombre ?? "Servicio", cita.FechaHora);
+                        await _emailService.SendEmailAsync(usuario.Email, usuario.Nombre,
+                            "AuraSpa — Tu cita fue reprogramada", html);
+                    }
+                }
+                catch (Exception ex)
+                {
+                    _logger.LogError(ex, "No se pudo enviar el correo de reprogramación para la cita {IdCita}", cita.IdCita);
+                }
+            }
+
+            return Ok(new { cita.IdCita, cita.Estado, cita.FechaHora });
+        }
+
         // GET /api/citas/todas  (solo Admin/Especialista)
         [HttpGet("todas")]
         [Authorize(Roles = "Admin,Cajero,Especialista")]

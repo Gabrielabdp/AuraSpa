@@ -20,6 +20,21 @@ interface Sucursal { idSucursal: number; nombre: string; }
 
 const HORAS = ['09:00','09:30','10:00','10:30','11:00','11:30','12:00','14:00','14:30','15:00','15:30','16:00','16:30','17:00'];
 
+// Margen mínimo de anticipación para reservar el mismo día
+const MARGEN_HORAS_HOY = 2;
+
+const esHoy = (fecha: string) => fecha === new Date().toISOString().split('T')[0];
+
+const horaPasada = (fecha: string, hora: string) => {
+  if (!esHoy(fecha)) return false;
+  const [h, m] = hora.split(':').map(Number);
+  const limite = new Date();
+  limite.setHours(limite.getHours() + MARGEN_HORAS_HOY);
+  const horaSlot = new Date();
+  horaSlot.setHours(h, m, 0, 0);
+  return horaSlot < limite;
+};
+
 const Agendamiento: React.FC = () => {
   const navigate = useNavigate();
   const [searchParams] = useSearchParams();
@@ -135,13 +150,14 @@ const Agendamiento: React.FC = () => {
   }, [categoria]);
 
   useEffect(() => {
-    if (!categoria) return;
-    apiClient.get('/api/catalog/empleados/0').then(res => {
+    if (!categoria || !idSucursal) return;
+    apiClient.get(`/api/catalog/empleados/${idSucursal}`).then(res => {
       // Asegurar que solo vienen especialistas
       res.data = res.data.filter((e: any) => !e.tipoEmpleado || e.tipoEmpleado === 'Especialista' || e.tipo === 'Especialista');
       setEspecialistas(res.data);
+      setIdEspecialista('');
     }).catch(() => {});
-  }, [categoria]);
+  }, [categoria, idSucursal]);
 
   // Consultar horas ocupadas del especialista seleccionado en la fecha elegida
   useEffect(() => {
@@ -151,10 +167,10 @@ const Agendamiento: React.FC = () => {
     }).catch(() => setHorasOcupadas([]));
   }, [idEspecialista, fecha]);
 
-  // Si la hora ya elegida quedó ocupada tras cambiar especialista/fecha, la deseleccionamos
+  // Si la hora ya elegida quedó ocupada o pasó el margen mínimo tras cambiar especialista/fecha, la deseleccionamos
   useEffect(() => {
-    if (hora && horasOcupadas.includes(hora)) setHora('');
-  }, [horasOcupadas]);
+    if (hora && (horasOcupadas.includes(hora) || horaPasada(fecha, hora))) setHora('');
+  }, [horasOcupadas, fecha]);
 
   useEffect(() => {
     apiClient.get('/api/catalog/sucursales').then(res => {
@@ -408,13 +424,19 @@ const Agendamiento: React.FC = () => {
               <option value="">Selecciona una hora...</option>
               {HORAS.map(h => {
                 const ocupada = horasOcupadas.includes(h);
+                const pasada = horaPasada(fecha, h);
                 return (
-                  <option key={h} value={h} disabled={ocupada}>
-                    {h} {parseInt(h) < 12 ? 'AM' : 'PM'}{ocupada ? ' (ocupada)' : ''}
+                  <option key={h} value={h} disabled={ocupada || pasada}>
+                    {h} {parseInt(h) < 12 ? 'AM' : 'PM'}{ocupada ? ' (ocupada)' : pasada ? ' (no disponible)' : ''}
                   </option>
                 );
               })}
             </select>
+            {fecha && esHoy(fecha) && (
+              <p style={{ fontSize: '0.78rem', color: 'var(--aura-gray)', marginTop: '8px' }}>
+                Para hoy, solo se pueden agendar horas con al menos {MARGEN_HORAS_HOY} horas de anticipación.
+              </p>
+            )}
             {idEspecialista && fecha && horasOcupadas.length > 0 && (
               <p style={{ fontSize: '0.78rem', color: 'var(--aura-gray)', marginTop: '8px' }}>
                 Las horas marcadas como "(ocupada)" ya tienen una cita con este especialista ese día.

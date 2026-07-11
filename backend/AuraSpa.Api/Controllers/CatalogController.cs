@@ -37,7 +37,21 @@ namespace AuraSpa.Api.Controllers
         // GET /api/catalog/products
         [HttpGet("products")]
         public async Task<IActionResult> GetProducts()
-            => Ok(await _ctx.ItemsCatalogo.Where(i => i.Activo && i.Tipo == "Producto").ToListAsync());
+        {
+            var productos = await _ctx.ItemsCatalogo
+                .Where(i => i.Activo && i.Tipo == "Producto")
+                .Select(i => new
+                {
+                    i.IdItem, i.Nombre, i.Descripcion, i.PrecioBase, i.Tipo, i.ImagenUrl,
+                    i.IdCategoria, i.DuracionMinutos, i.PrecioVariable, i.ItbisAplica, i.Activo,
+                    StockActual = _ctx.ItemsCatalogoSucursal
+                        .Where(s => s.IdItem == i.IdItem)
+                        .Select(s => s.Stock)
+                        .FirstOrDefault() ?? 0
+                })
+                .ToListAsync();
+            return Ok(productos);
+        }
 
         // GET /api/catalog/categorias
         [HttpGet("categorias")]
@@ -53,12 +67,14 @@ namespace AuraSpa.Api.Controllers
                 .Select(s => new { s.IdSucursal, s.Nombre, s.Direccion })
                 .ToListAsync());
 
-        // GET /api/catalog/empleados/{categoriaId}
-        [HttpGet("empleados/{categoriaId}")]
-        public async Task<IActionResult> GetEmpleadosPorCategoria(long categoriaId)
+        // GET /api/catalog/empleados/{idSucursal} — idSucursal=0 devuelve todos (uso interno, ej. Caja)
+        [HttpGet("empleados/{idSucursal}")]
+        public async Task<IActionResult> GetEmpleadosPorSucursal(long idSucursal)
         {
-            var empleados = await _ctx.Empleados
-                .Where(e => e.Activo && e.TipoEmpleado == "Especialista")
+            var q = _ctx.Empleados.Where(e => e.Activo && e.TipoEmpleado == "Especialista");
+            if (idSucursal > 0) q = q.Where(e => e.IdSucursal == idSucursal);
+
+            var empleados = await q
                 .Select(e => new { e.IdEmpleado, NombreCompleto = e.Nombres + " " + e.Apellidos, e.EmailEmpresarial })
                 .ToListAsync();
             return Ok(empleados);

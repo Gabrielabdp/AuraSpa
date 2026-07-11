@@ -83,6 +83,11 @@ namespace AuraSpa.Api.DTOs
         public int     Cantidad       { get; set; }
         public decimal PrecioUnitario { get; set; }
     }
+
+    public class ReprogramarCitaDto
+    {
+        public DateTime FechaHora { get; set; }
+    }
 }
 
     public class ActualizarPerfilDto

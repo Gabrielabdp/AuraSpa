@@ -87,6 +87,7 @@ const Catalog: React.FC = () => {
     e.stopPropagation();
     if (!esCliente) return;
     if (item.tipo === 'Producto') {
+      if (item.stock === 0) return;
       agregarAlCarrito(item);
     } else {
       navigate(`/agendamiento?itemId=${item.id}&categoria=${item.categoria}`);
@@ -224,15 +225,21 @@ const Catalog: React.FC = () => {
                 </div>
 
                 {esCliente ? (
-                  <button
-                    className="btn-AuraSpa"
-                    onClick={(e) => handleAccion(item, e)}
-                    style={{ width: '100%', padding: '11px', fontSize: '0.88rem', display: 'flex', alignItems: 'center', justifyContent: 'center', gap: '7px' }}
-                  >
-                    {item.tipo === 'Servicio'
-                      ? <><span>📅</span> Agendar cita</>
-                      : <><ShoppingCart size={15} /> Reservar</>}
-                  </button>
+                  item.tipo === 'Producto' && item.stock === 0 ? (
+                    <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'center', gap: '6px', padding: '11px', background: '#f5f5f5', borderRadius: '30px', color: '#999', fontSize: '0.85rem', fontWeight: '600' }}>
+                      Sin stock disponible
+                    </div>
+                  ) : (
+                    <button
+                      className="btn-AuraSpa"
+                      onClick={(e) => handleAccion(item, e)}
+                      style={{ width: '100%', padding: '11px', fontSize: '0.88rem', display: 'flex', alignItems: 'center', justifyContent: 'center', gap: '7px' }}
+                    >
+                      {item.tipo === 'Servicio'
+                        ? <><span>📅</span> Agendar cita</>
+                        : <><ShoppingCart size={15} /> Reservar</>}
+                    </button>
+                  )
                 ) : (
                   <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'center', gap: '6px', padding: '11px', background: '#f5f5f5', borderRadius: '30px', color: '#999', fontSize: '0.82rem' }}>
                     <Lock size={13} /> {user ? 'Solo clientes pueden reservar' : 'Inicia sesión para reservar'}

@@ -42,6 +42,13 @@ const MisCitas: React.FC = () => {
   const [resenaExito, setResenaExito] = useState(false);
   const [citasConResena, setCitasConResena] = useState<number[]>([]);
 
+  const [reprogramarModal, setReprogramarModal] = useState<number | null>(null);
+  const [nuevaFecha, setNuevaFecha] = useState('');
+  const [nuevaHora, setNuevaHora] = useState('');
+  const [reprogramarError, setReprogramarError] = useState('');
+  const [reprogramarEnviando, setReprogramarEnviando] = useState(false);
+  const [reprogramarExito, setReprogramarExito] = useState(false);
+
   useEffect(() => {
     fetchCitas();
   }, []);
@@ -59,6 +66,16 @@ const MisCitas: React.FC = () => {
     }
   };
 
+  // Cuando falta menos de 72h, calcula el déficit para explicar cuánto falta para el corte de las 72h
+  const calcularTiempoParaCancelar = (fechaHora: string) => {
+    const minutosHastaCita = Math.floor((new Date(fechaHora).getTime() - Date.now()) / 60000);
+    const minutosFaltantes = 72 * 60 - minutosHastaCita;
+    if (minutosFaltantes <= 0) return null;
+    const horas = Math.floor(minutosFaltantes / 60);
+    const minutos = minutosFaltantes % 60;
+    return `Podrás cancelar esta cita en ${horas} horas y ${minutos} minutos.`;
+  };
+
   const handleCancelar = async (idCita: number) => {
     setCancelando(idCita);
     setCancelError(prev => ({ ...prev, [idCita]: '' }));
@@ -67,9 +84,38 @@ const MisCitas: React.FC = () => {
       setCitas(prev => prev.map(c => c.idCita === idCita ? { ...c, estado: 'Cancelada' } : c));
     } catch (err: any) {
       const msg = err.response?.data;
-      setCancelError(prev => ({ ...prev, [idCita]: typeof msg === 'string' ? msg : 'No se pudo cancelar la cita.' }));
+      const cita = citas.find(c => c.idCita === idCita);
+      const tiempoRestante = cita ? calcularTiempoParaCancelar(cita.fechaHora) : null;
+      setCancelError(prev => ({ ...prev, [idCita]: tiempoRestante ?? (typeof msg === 'string' ? msg : 'No se pudo cancelar la cita.') }));
     } finally {
       setCancelando(null);
+    }
+  };
+
+  const puedeReprogramar = (cita: Cita) =>
+    (cita.estado === 'Pendiente' || cita.estado === 'Confirmada') &&
+    (new Date(cita.fechaHora).getTime() - Date.now()) / 3600000 >= 72;
+
+  const handleReprogramar = async () => {
+    if (reprogramarModal === null || !nuevaFecha || !nuevaHora) return;
+    setReprogramarEnviando(true);
+    setReprogramarError('');
+    try {
+      const fechaHora = `${nuevaFecha}T${nuevaHora}:00`;
+      const res = await apiClient.put(`/api/citas/${reprogramarModal}/reprogramar`, { fechaHora });
+      setCitas(prev => prev.map(c => c.idCita === reprogramarModal ? { ...c, fechaHora: res.data.fechaHora } : c));
+      setReprogramarExito(true);
+      setTimeout(() => {
+        setReprogramarModal(null);
+        setNuevaFecha('');
+        setNuevaHora('');
+        setReprogramarExito(false);
+      }, 2000);
+    } catch (err: any) {
+      const msg = err.response?.data;
+      setReprogramarError(typeof msg === 'string' ? msg : 'No se pudo reprogramar la cita.');
+    } finally {
+      setReprogramarEnviando(false);
     }
   };
 
@@ -349,6 +395,14 @@ const MisCitas: React.FC = () => {
                         }}>✍️ Dejar reseña</button>
                       )
                     )}
+                    {puedeReprogramar(cita) && (
+                      <button
+                        onClick={() => { setReprogramarModal(cita.idCita); setNuevaFecha(''); setNuevaHora(''); setReprogramarError(''); }}
+                        style={{ padding: '8px 18px', borderRadius: '30px', border: '1px solid #6B5B93', background: '#f0ecff', color: '#6B5B93', fontWeight: '600', cursor: 'pointer', fontSize: '0.82rem' }}
+                      >
+                        📅 Reprogramar
+                      </button>
+                    )}
                     {(cita.estado === 'Pendiente' || cita.estado === 'Confirmada') && (
                       <>
                         <button
@@ -401,6 +455,43 @@ const MisCitas: React.FC = () => {
                     {resenaEnviando ? <Loader2 size={16} className="animate-spin" style={{ margin: '0 auto' }} /> : 'Publicar reseña'}
                   </button>
                   <button onClick={() => { setResenaModal(null); setCalificacion(0); setComentario(''); setResenaError(''); }} className="btn-outline-aura" style={{ flex: 1, padding: '12px' }}>Cancelar</button>
+                </div>
+              </>
+            )}
+          </div>
+        </div>
+      )}
+
+      {reprogramarModal !== null && (
+        <div style={{ position: 'fixed', inset: 0, background: 'rgba(0,0,0,0.4)', display: 'flex', alignItems: 'center', justifyContent: 'center', zIndex: 1000, padding: '20px' }}>
+          <div className="card-aura" style={{ width: '100%', maxWidth: '440px', padding: '40px', borderRadius: '30px' }}>
+            {reprogramarExito ? (
+              <div style={{ background: '#f0fdf4', color: '#22c55e', borderRadius: '14px', padding: '18px', textAlign: 'center', fontWeight: '600', fontSize: '0.95rem' }}>
+                ✅ ¡Tu cita fue reprogramada!
+              </div>
+            ) : (
+              <>
+                <h3 style={{ color: 'var(--aura-navy)', fontWeight: 'bold', marginBottom: '8px', textAlign: 'center' }}>Reprogramar cita</h3>
+                <p style={{ color: 'var(--aura-gray)', textAlign: 'center', fontSize: '0.9rem', marginBottom: '25px' }}>
+                  {citas.find(c => c.idCita === reprogramarModal)?.servicio}
+                </p>
+                <div style={{ marginBottom: '16px' }}>
+                  <label style={{ display: 'block', marginBottom: '8px', color: 'var(--aura-gray)', fontWeight: 500, fontSize: '0.9rem' }}>Nueva fecha</label>
+                  <input type="date" value={nuevaFecha} onChange={(e) => setNuevaFecha(e.target.value)}
+                    min={new Date().toISOString().split('T')[0]}
+                    style={{ width: '100%', padding: '12px 15px', borderRadius: '15px', border: '1px solid #ddd', outline: 'none', background: '#fcfcfc', fontSize: '0.9rem', boxSizing: 'border-box' }} />
+                </div>
+                <div style={{ marginBottom: '20px' }}>
+                  <label style={{ display: 'block', marginBottom: '8px', color: 'var(--aura-gray)', fontWeight: 500, fontSize: '0.9rem' }}>Nueva hora</label>
+                  <input type="time" value={nuevaHora} onChange={(e) => setNuevaHora(e.target.value)}
+                    style={{ width: '100%', padding: '12px 15px', borderRadius: '15px', border: '1px solid #ddd', outline: 'none', background: '#fcfcfc', fontSize: '0.9rem', boxSizing: 'border-box' }} />
+                </div>
+                {reprogramarError && <p style={{ color: '#c62828', fontSize: '0.82rem', marginBottom: '15px', textAlign: 'center' }}>{reprogramarError}</p>}
+                <div style={{ display: 'flex', gap: '10px' }}>
+                  <button onClick={handleReprogramar} className="btn-AuraSpa" style={{ flex: 1, padding: '12px' }} disabled={!nuevaFecha || !nuevaHora || reprogramarEnviando}>
+                    {reprogramarEnviando ? <Loader2 size={16} className="animate-spin" style={{ margin: '0 auto' }} /> : 'Confirmar cambio'}
+                  </button>
+                  <button onClick={() => { setReprogramarModal(null); setNuevaFecha(''); setNuevaHora(''); setReprogramarError(''); }} className="btn-outline-aura" style={{ flex: 1, padding: '12px' }}>Cancelar</button>
                 </div>
               </>
             )}
