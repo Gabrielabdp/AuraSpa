@@ -27,7 +27,9 @@ const Registro: React.FC = () => {
   const { login } = useAuth();
 
   const validarPassword = (valor: string) => {
-    if (valor.length > 0 && valor.length < 8) {
+    if (valor.length === 0) {
+      setPasswordError('La contraseña es obligatoria');
+    } else if (valor.length < 8) {
       setPasswordError('La contraseña debe tener al menos 8 caracteres.');
     } else {
       setPasswordError('');
@@ -36,6 +38,10 @@ const Registro: React.FC = () => {
 
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
+    if (!password) {
+      setPasswordError('La contraseña es obligatoria');
+      return;
+    }
     if (password.length < 8) {
       setPasswordError('La contraseña debe tener al menos 8 caracteres.');
       return;
@@ -170,7 +176,6 @@ const Registro: React.FC = () => {
               placeholder="Mínimo 8 caracteres"
               value={password}
               onChange={(e) => { setPassword(e.target.value); validarPassword(e.target.value); }}
-              required
               style={{ ...inputStyle, borderColor: passwordError ? '#c62828' : '#ddd' }}
             />
             {passwordError && <p style={{ color: '#c62828', fontSize: '0.8rem', margin: '6px 0 0' }}>{passwordError}</p>}

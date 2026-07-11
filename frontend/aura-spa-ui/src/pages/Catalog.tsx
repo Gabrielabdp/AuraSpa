@@ -55,27 +55,45 @@ const Catalog: React.FC = () => {
 
   useEffect(() => {
     setLoading(true); setError('');
-    Promise.all([
-      apiClient.get('/api/catalog/services'),
-      apiClient.get('/api/catalog/products'),
-      apiClient.get('/api/catalog/categorias'),
-    ]).then(([servRes, prodRes, catRes]) => {
-      const servicios: CatalogItem[] = servRes.data.map((s: any) => ({
-        id: s.idItem, nombre: s.nombre, descripcion: s.descripcion ?? '',
-        precio: s.precioBase ?? 0, tipo: 'Servicio', imagenUrl: s.imagenUrl ?? '',
-        duracionMinutos: s.duracionMinutos, categoria: s.categoria?.nombre ?? '',
-      }));
-      const productos: CatalogItem[] = prodRes.data.map((p: any) => ({
-        id: p.idItem, nombre: p.nombre, descripcion: p.descripcion ?? '',
-        precio: p.precioBase ?? 0, tipo: 'Producto', imagenUrl: p.imagenUrl ?? '',
-        stock: p.stockActual, categoria: 'Producto',
-      }));
-      setItems([...servicios, ...productos]);
-      setCategorias(['Todos', ...catRes.data.map((c: any) => c.nombre)]);
-    }).catch(() => {
-      setError('No se pudo cargar el catálogo. Verifica que el servidor esté activo.');
-    }).finally(() => setLoading(false));
-  }, []);
+
+    const cargarCatalogo = async () => {
+      // Si hay sesión, filtramos por la sucursal del cliente (por ahora, la única sucursal activa)
+      let idSucursal: number | undefined;
+      if (user) {
+        try {
+          const sucRes = await apiClient.get('/api/catalog/sucursales');
+          idSucursal = sucRes.data[0]?.idSucursal;
+        } catch { /* sin sucursal disponible: se carga el catálogo completo */ }
+      }
+      const params = idSucursal ? { idSucursal } : {};
+
+      try {
+        const [servRes, prodRes, catRes] = await Promise.all([
+          apiClient.get('/api/catalog/services', { params }),
+          apiClient.get('/api/catalog/products', { params }),
+          apiClient.get('/api/catalog/categorias'),
+        ]);
+        const servicios: CatalogItem[] = servRes.data.map((s: any) => ({
+          id: s.idItem, nombre: s.nombre, descripcion: s.descripcion ?? '',
+          precio: s.precioBase ?? 0, tipo: 'Servicio', imagenUrl: s.imagenUrl ?? '',
+          duracionMinutos: s.duracionMinutos, categoria: s.categoria?.nombre ?? '',
+        }));
+        const productos: CatalogItem[] = prodRes.data.map((p: any) => ({
+          id: p.idItem, nombre: p.nombre, descripcion: p.descripcion ?? '',
+          precio: p.precioBase ?? 0, tipo: 'Producto', imagenUrl: p.imagenUrl ?? '',
+          stock: p.stockActual, categoria: 'Producto',
+        }));
+        setItems([...servicios, ...productos]);
+        setCategorias(['Todos', ...catRes.data.map((c: any) => c.nombre)]);
+      } catch {
+        setError('No se pudo cargar el catálogo. Verifica que el servidor esté activo.');
+      } finally {
+        setLoading(false);
+      }
+    };
+
+    cargarCatalogo();
+  }, [user]);
 
   const filteredItems = items.filter(item =>
     item.tipo === filter &&

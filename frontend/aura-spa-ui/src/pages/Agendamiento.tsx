@@ -61,7 +61,9 @@ const Agendamiento: React.FC = () => {
   const [hora, setHora] = useState('');
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState('');
+  const [fechaError, setFechaError] = useState('');
   const [horasOcupadas, setHorasOcupadas] = useState<string[]>([]);
+  const [diasBloqueados, setDiasBloqueados] = useState<Record<string, string>>({});
 
   const [especialistas, setEspecialistas] = useState<Especialista[]>([]);
   const [servicios, setServicios] = useState<Servicio[]>([]);
@@ -159,6 +161,15 @@ const Agendamiento: React.FC = () => {
     }).catch(() => {});
   }, [categoria, idSucursal]);
 
+  // Días no laborables configurados por administración (feriados, cierres)
+  useEffect(() => {
+    apiClient.get('/api/core/dias-bloqueados').then(res => {
+      const mapa: Record<string, string> = {};
+      res.data.forEach((d: any) => { mapa[new Date(d.fecha).toISOString().split('T')[0]] = d.motivo; });
+      setDiasBloqueados(mapa);
+    }).catch(() => {});
+  }, []);
+
   // Consultar horas ocupadas del especialista seleccionado en la fecha elegida
   useEffect(() => {
     if (!idEspecialista || !fecha) { setHorasOcupadas([]); return; }
@@ -184,6 +195,7 @@ const Agendamiento: React.FC = () => {
     e.preventDefault();
     if (!categoria) { setError('Selecciona una categoría de servicio.'); return; }
     if (!fecha || !hora) { setError('Selecciona fecha y hora.'); return; }
+    if (diasBloqueados[fecha]) { setError(`Esa fecha no está disponible (${diasBloqueados[fecha]}).`); return; }
 
     setLoading(true);
     setError('');
@@ -414,8 +426,19 @@ const Agendamiento: React.FC = () => {
 
           <div style={{ marginBottom: '20px' }}>
             <label style={labelStyle}>Fecha</label>
-            <input type="date" value={fecha} onChange={(e) => setFecha(e.target.value)}
-              min={new Date().toISOString().split('T')[0]} required style={inputStyle} />
+            <input type="date" value={fecha} onChange={(e) => {
+                const val = e.target.value;
+                if (diasBloqueados[val]) {
+                  setFechaError(`Esa fecha no está disponible (${diasBloqueados[val]}). Selecciona otra fecha.`);
+                  setFecha('');
+                  return;
+                }
+                setFechaError('');
+                setFecha(val);
+              }}
+              min={new Date().toISOString().split('T')[0]} required
+              style={{ ...inputStyle, border: fechaError ? '1px solid #ef4444' : '1px solid #ddd' }} />
+            {fechaError && <p style={{ fontSize: '0.78rem', color: '#c62828', marginTop: '8px' }}>{fechaError}</p>}
           </div>
 
           <div style={{ marginBottom: '35px' }}>

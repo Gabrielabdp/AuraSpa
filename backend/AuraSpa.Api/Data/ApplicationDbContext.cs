@@ -42,6 +42,7 @@ namespace AuraSpa.Api.Data
         public DbSet<Notificacion>        Notificaciones        { get; set; }
         public DbSet<ItemCatalogoSucursal> ItemsCatalogoSucursal { get; set; }
         public DbSet<CuentaPorCobrar>      CuentasPorCobrar      { get; set; }
+        public DbSet<DiaBloqueado>         DiasBloqueados        { get; set; }
 
         protected override void OnModelCreating(ModelBuilder modelBuilder)
         {

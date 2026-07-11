@@ -16,4 +16,10 @@ namespace AuraSpa.Api.DTOs
         public string? Telefono        { get; set; }
         public long    IdSucursal      { get; set; }
     }
+
+    public class DiaBloqueadoDto
+    {
+        public DateTime Fecha  { get; set; }
+        public string   Motivo { get; set; } = string.Empty;
+    }
 }

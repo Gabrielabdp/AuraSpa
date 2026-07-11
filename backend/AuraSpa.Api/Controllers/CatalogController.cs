@@ -26,26 +26,31 @@ namespace AuraSpa.Api.Controllers
 
         // GET /api/catalog/services
         [HttpGet("services")]
-        public async Task<IActionResult> GetServices([FromQuery] long? categoriaId)
+        public async Task<IActionResult> GetServices([FromQuery] long? categoriaId, [FromQuery] long? idSucursal)
         {
             var q = _ctx.ItemsCatalogo.Include(i => i.Categoria)
                         .Where(i => i.Activo && i.Tipo == "Servicio");
             if (categoriaId.HasValue) q = q.Where(i => i.IdCategoria == categoriaId);
+            if (idSucursal.HasValue)
+                q = q.Where(i => _ctx.ItemsCatalogoSucursal.Any(s => s.IdItem == i.IdItem && s.IdSucursal == idSucursal.Value && s.Disponible));
             return Ok(await q.OrderBy(i => i.Categoria!.OrdenDisplay).ThenBy(i => i.Nombre).ToListAsync());
         }
 
         // GET /api/catalog/products
         [HttpGet("products")]
-        public async Task<IActionResult> GetProducts()
+        public async Task<IActionResult> GetProducts([FromQuery] long? idSucursal)
         {
-            var productos = await _ctx.ItemsCatalogo
-                .Where(i => i.Activo && i.Tipo == "Producto")
+            var q = _ctx.ItemsCatalogo.Where(i => i.Activo && i.Tipo == "Producto");
+            if (idSucursal.HasValue)
+                q = q.Where(i => _ctx.ItemsCatalogoSucursal.Any(s => s.IdItem == i.IdItem && s.IdSucursal == idSucursal.Value && s.Disponible));
+
+            var productos = await q
                 .Select(i => new
                 {
                     i.IdItem, i.Nombre, i.Descripcion, i.PrecioBase, i.Tipo, i.ImagenUrl,
                     i.IdCategoria, i.DuracionMinutos, i.PrecioVariable, i.ItbisAplica, i.Activo,
                     StockActual = _ctx.ItemsCatalogoSucursal
-                        .Where(s => s.IdItem == i.IdItem)
+                        .Where(s => s.IdItem == i.IdItem && (!idSucursal.HasValue || s.IdSucursal == idSucursal.Value))
                         .Select(s => s.Stock)
                         .FirstOrDefault() ?? 0
                 })

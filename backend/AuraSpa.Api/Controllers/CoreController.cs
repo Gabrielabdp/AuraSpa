@@ -164,5 +164,30 @@ namespace AuraSpa.Api.Controllers
 
             return Ok(new { id = empleado.IdEmpleado, empleado.Nombres, empleado.Apellidos });
         }
+
+        // ── DÍAS NO LABORABLES ──────────────────────────────────
+        // GET /api/core/dias-bloqueados — visible para cualquier usuario autenticado (lo usa Agendamiento)
+        [HttpGet("dias-bloqueados")]
+        [AllowAnonymous]
+        public async Task<IActionResult> GetDiasBloqueados()
+            => Ok(await _ctx.DiasBloqueados
+                .Where(d => d.Activo)
+                .OrderBy(d => d.Fecha)
+                .Select(d => new { id = d.IdDiaBloqueado, fecha = d.Fecha, motivo = d.Motivo })
+                .ToListAsync());
+
+        // POST /api/core/dias-bloqueados  (solo Admin)
+        [HttpPost("dias-bloqueados")]
+        public async Task<IActionResult> CrearDiaBloqueado([FromBody] DiaBloqueadoDto dto)
+        {
+            if (await _ctx.DiasBloqueados.AnyAsync(d => d.Fecha == dto.Fecha.Date && d.Activo))
+                return BadRequest("Esa fecha ya está bloqueada.");
+
+            var dia = new DiaBloqueado { Fecha = dto.Fecha.Date, Motivo = dto.Motivo };
+            _ctx.DiasBloqueados.Add(dia);
+            await _ctx.SaveChangesAsync();
+
+            return Ok(new { id = dia.IdDiaBloqueado, fecha = dia.Fecha, motivo = dia.Motivo });
+        }
     }
 }

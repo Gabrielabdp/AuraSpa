@@ -32,8 +32,11 @@ namespace AuraSpa.Api.Controllers
                 .Include(u => u.Perfil)
                 .FirstOrDefaultAsync(u => u.Email == dto.Email || u.NombreUsuario == dto.Email);
 
-            if (usuario == null || !usuario.Activo)
+            if (usuario == null)
                 return Unauthorized("Credenciales inválidas.");
+
+            if (!usuario.Activo)
+                return BadRequest("Tu cuenta está desactivada. Contacta al administrador.");
 
             if (usuario.BloqueadoHasta.HasValue && usuario.BloqueadoHasta > DateTime.Now)
                 return Unauthorized($"Cuenta bloqueada hasta {usuario.BloqueadoHasta:HH:mm}. Intenta más tarde.");

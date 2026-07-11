@@ -5,13 +5,13 @@ import apiClient from '../services/apiClient';
 import {
   Building2, Shield, Users, UserCheck, Package,
   Stethoscope, Gift, FileCheck, ClipboardList, LogOut,
-  Plus, Edit, Trash2, CheckCircle, XCircle, X, Search, Save, Clock
+  Plus, Edit, Trash2, CheckCircle, XCircle, X, Search, Save, Clock, CalendarOff
 } from 'lucide-react';
 
-type Seccion = 'sucursales'|'perfiles'|'usuarios'|'empleados'|'servicios'|'inventario'|'expedientes'|'paquetes'|'consentimiento'|'auditoria';
+type Seccion = 'sucursales'|'perfiles'|'usuarios'|'empleados'|'servicios'|'inventario'|'expedientes'|'paquetes'|'consentimiento'|'diasBloqueados'|'auditoria';
 
 // Secciones con create/edit real contra el backend
-const SECCIONES_CON_CREAR = ['sucursales', 'empleados', 'expedientes'];
+const SECCIONES_CON_CREAR = ['sucursales', 'empleados', 'expedientes', 'diasBloqueados'];
 // Secciones aún no implementadas — solo muestran un aviso
 const SECCIONES_PROXIMAMENTE: Seccion[] = ['paquetes', 'consentimiento'];
 
@@ -83,6 +83,7 @@ const Core: React.FC = () => {
   const [servicios,       setServicios]       = useState<any[]>([]);
   const [inventario,      setInventario]      = useState<any[]>([]);
   const [expedientes,     setExpedientes]     = useState(INIT_EXPEDIENTES);
+  const [diasBloqueados,  setDiasBloqueados]  = useState<any[]>([]);
   const [auditoriaLog] = useState(INIT_AUDITORIA);
 
   const mostrarToast = (msg: string, esError = false) => {
@@ -121,6 +122,9 @@ const Core: React.FC = () => {
       })));
     } catch { setInventario([]); }
   }, [sucursales]);
+  const cargarDiasBloqueados = useCallback(async () => {
+    try { const r = await apiClient.get('/api/core/dias-bloqueados'); setDiasBloqueados(r.data); } catch { setDiasBloqueados([]); }
+  }, []);
 
   // Sucursales se cargan siempre al montar — las necesita el formulario de Empleados
   useEffect(() => { cargarSucursales(); }, [cargarSucursales]);
@@ -133,6 +137,7 @@ const Core: React.FC = () => {
       else if (seccion==='empleados')  { setCargando(true); await cargarEmpleados(); }
       else if (seccion==='servicios')  { setCargando(true); await cargarServicios(); }
       else if (seccion==='inventario') { setCargando(true); await cargarInventario(); }
+      else if (seccion==='diasBloqueados') { setCargando(true); await cargarDiasBloqueados(); }
       else return;
       setCargando(false);
     };
@@ -218,6 +223,10 @@ const Core: React.FC = () => {
         if (editId) setExpedientes(p=>p.map(x=>x.id===editId?{...x,alergias:form.alergias||x.alergias,tipoPiel:form.tipoPiel||x.tipoPiel,medicamentos:form.medicamentos||x.medicamentos,notas:form.notas||x.notas}:x));
         else        setExpedientes(p=>[...p,{id,cliente:form.cliente||'',alergias:form.alergias||'Ninguna',tipoPiel:form.tipoPiel||'Normal',medicamentos:form.medicamentos||'Ninguno',notas:form.notas||'',activo:true}]);
         mostrarToast('Guardado correctamente.');
+      } else if (seccion==='diasBloqueados') {
+        await apiClient.post('/api/core/dias-bloqueados', { fecha: form.fecha, motivo: form.motivo||'' });
+        await cargarDiasBloqueados();
+        mostrarToast('Día bloqueado correctamente.');
       }
     } catch (err: any) {
       const msg = err.response?.data;
@@ -240,12 +249,16 @@ const Core: React.FC = () => {
     {id:'expedientes',   label:'Expedientes',   icon:<Stethoscope size={14}/>},
     {id:'paquetes',      label:'Paquetes',      icon:<Gift size={14}/>},
     {id:'consentimiento',label:'Consentimiento',icon:<FileCheck size={14}/>},
+    {id:'diasBloqueados',label:'Días No Laborables',icon:<CalendarOff size={14}/>},
     {id:'auditoria',     label:'Auditoría',     icon:<ClipboardList size={14}/>},
   ];
 
   // ── FORMULARIOS POR SECCIÓN ────────────────────────────────────────────────
+  const NOMBRE_SINGULAR: Record<string,string> = {
+    sucursales: 'Sucursal', empleados: 'Empleado', expedientes: 'Expediente', diasBloqueados: 'Día No Laborable'
+  };
   const renderForm = () => {
-    const titulo = editId ? 'Editar' : 'Nuevo';
+    const titulo = `${editId ? 'Editar' : 'Nuevo'} ${NOMBRE_SINGULAR[seccion] ?? ''}`;
     let campos = null;
 
     if (seccion==='sucursales') campos = (
@@ -306,11 +319,19 @@ const Core: React.FC = () => {
         </div>
       </>
     );
+    else if (seccion==='diasBloqueados') campos = (
+      <>
+        <div style={{marginBottom:'14px'}}><label style={lS}>Fecha</label>
+          <input type="date" value={form.fecha||''} onChange={e=>setF('fecha',e.target.value)} style={iS}/></div>
+        <div style={{marginBottom:'14px'}}><label style={lS}>Motivo</label>
+          <input value={form.motivo||''} onChange={e=>setF('motivo',e.target.value)} placeholder="Ej: Feriado nacional, cierre por mantenimiento" style={iS}/></div>
+      </>
+    );
     return (
       <div className="card-aura" style={{padding:'25px',marginBottom:'20px',borderLeft:'4px solid var(--aura-lavender)'}}>
         <div style={{display:'flex',justifyContent:'space-between',alignItems:'center',marginBottom:'20px'}}>
           <h4 style={{fontWeight:'700',color:'var(--aura-navy)',margin:0}}>
-            {titulo} {seccion.charAt(0).toUpperCase()+seccion.slice(1,-1===seccion.indexOf('es')?0:-1)}
+            {titulo}
           </h4>
           <button onClick={()=>{setModalOpen(false);setForm({});setEditId(null);}} style={{background:'none',border:'none',cursor:'pointer',color:'var(--aura-gray)'}}><X size={18}/></button>
         </div>
@@ -421,8 +442,8 @@ const Core: React.FC = () => {
         {seccion !== 'auditoria' && !SECCIONES_PROXIMAMENTE.includes(seccion) && (
           <div style={{display:'flex',justifyContent:'space-between',alignItems:'center',marginBottom:'18px',flexWrap:'wrap',gap:'10px'}}>
             <div>
-              <h3 style={{color:'var(--aura-navy)',fontWeight:'bold',margin:0,textTransform:'capitalize'}}>{seccion}</h3>
-              <p style={{color:'#888',margin:0,fontSize:'0.83rem'}}>Gestión de {seccion} del sistema</p>
+              <h3 style={{color:'var(--aura-navy)',fontWeight:'bold',margin:0}}>{tabs.find(t=>t.id===seccion)?.label}</h3>
+              <p style={{color:'#888',margin:0,fontSize:'0.83rem'}}>Gestión de {tabs.find(t=>t.id===seccion)?.label?.toLowerCase()} del sistema</p>
             </div>
             {SECCIONES_CON_CREAR.includes(seccion) && (
               <button onClick={abrirCrear} className="btn-AuraSpa" style={{padding:'10px 18px',display:'flex',alignItems:'center',gap:'6px',fontSize:'0.85rem'}}>
@@ -560,6 +581,23 @@ const Core: React.FC = () => {
           <div className="card-aura" style={{padding:'60px',textAlign:'center'}}>
             <Clock size={40} color="#ccc" style={{marginBottom:'16px'}}/>
             <p style={{color:'var(--aura-gray)',fontWeight:'600',margin:0}}>Esta funcionalidad estará disponible próximamente.</p>
+          </div>
+        )}
+
+        {/* ── DÍAS NO LABORABLES ── */}
+        {seccion==='diasBloqueados' && (
+          <div className="card-aura" style={{overflow:'hidden',padding:0}}>
+            <table style={{width:'100%',borderCollapse:'collapse'}}>
+              <TH cols={['Fecha','Motivo']}/>
+              <tbody>{diasBloqueados.length===0?(
+                <tr><td colSpan={2} style={{padding:'30px',textAlign:'center',color:'#bbb',fontSize:'0.88rem'}}>No hay días bloqueados registrados</td></tr>
+              ):filtrar(diasBloqueados,'motivo').map((d,i)=>(
+                <tr key={d.id} style={{borderBottom:'1px solid #f0edf5',background:i%2===0?'white':'#faf9ff'}}>
+                  <td style={tdB}>{new Date(d.fecha).toLocaleDateString('es-DO',{day:'numeric',month:'long',year:'numeric'})}</td>
+                  <td style={tdS}>{d.motivo}</td>
+                </tr>
+              ))}</tbody>
+            </table>
           </div>
         )}
 
