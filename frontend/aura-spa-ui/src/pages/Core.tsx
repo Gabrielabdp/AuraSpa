@@ -1,61 +1,26 @@
-import React, { useState, useRef } from 'react';
+import React, { useState, useEffect, useCallback } from 'react';
 import { useAuth } from '../context/AuthContext';
 import { useNavigate } from 'react-router-dom';
+import apiClient from '../services/apiClient';
 import {
   Building2, Shield, Users, UserCheck, Package,
   Stethoscope, Gift, FileCheck, ClipboardList, LogOut,
-  Plus, Edit, Trash2, CheckCircle, X, Search, Save
+  Plus, Edit, Trash2, CheckCircle, XCircle, X, Search, Save, Clock
 } from 'lucide-react';
 
 type Seccion = 'sucursales'|'perfiles'|'usuarios'|'empleados'|'servicios'|'inventario'|'expedientes'|'paquetes'|'consentimiento'|'auditoria';
 
-// ── DATOS INICIALES ────────────────────────────────────────────────────────────
-const INIT_SUCURSALES = [
-  { id:1, nombre:'AuraSpa Piantini',    direccion:'Calle 2, Piantini',    telefono:'8091234567', activo:true  },
-  { id:2, nombre:'AuraSpa Bella Vista', direccion:'Calle 2, Bella Vista', telefono:'8091234568', activo:true  },
-];
-const INIT_PERFILES = [
-  { id:1, nombre:'Admin',        descripcion:'Acceso total al sistema'             },
-  { id:2, nombre:'Cajero',       descripcion:'Ventas, caja y cotizaciones'         },
-  { id:3, nombre:'Especialista', descripcion:'Citas, expedientes y galería'        },
-  { id:4, nombre:'Cliente',      descripcion:'Portal web: citas, órdenes y perfil' },
-];
-const INIT_USUARIOS = [
-  { id:1, nombre:'admin',    email:'admin@auraspa.com',    perfil:'Admin',        activo:true  },
-  { id:2, nombre:'cajero',   email:'cajero@auraspa.com',   perfil:'Cajero',       activo:true  },
-  { id:3, nombre:'nicole',   email:'nicole@auraspa.com',   perfil:'Especialista', activo:true  },
-];
-const INIT_EMPLEADOS = [
-  { id:1, nombres:'Nicole',    apellidos:'Martínez', documento:'00200000001', tipoEmpleado:'Especialista', telefono:'8295550101', sucursal:'AuraSpa Piantini' },
-  { id:2, nombres:'Valentina', apellidos:'Reyes',    documento:'00200000002', tipoEmpleado:'Especialista', telefono:'8295550102', sucursal:'AuraSpa Piantini' },
-  { id:3, nombres:'Sofía',     apellidos:'Pérez',    documento:'00200000003', tipoEmpleado:'Cajero',       telefono:'8295550103', sucursal:'AuraSpa Bella Vista' },
-];
-const INIT_SERVICIOS = [
-  { id:1, nombre:'Facial Hidratante',       categoria:'Facial',     precio:1800, duracion:60,  activo:true },
-  { id:2, nombre:'Masaje Relajante 60min',  categoria:'Masaje',     precio:2500, duracion:60,  activo:true },
-  { id:3, nombre:'Depilación Piernas',      categoria:'Depilación', precio:1200, duracion:45,  activo:true },
-  { id:4, nombre:'Diseño de Cejas',         categoria:'Cejas',      precio:600,  duracion:30,  activo:true },
-  { id:5, nombre:'Manicura Rusa',           categoria:'Uñas',       precio:1200, duracion:60,  activo:true },
-  { id:6, nombre:'Keratina (por onza)',      categoria:'Pelo',       precio:350,  duracion:120, activo:true },
-];
-const INIT_INVENTARIO = [
-  { id:1, nombre:'Crema Hidratante Facial', categoria:'Skincare',   stock:15, stockMinimo:5,  precio:850,  activo:true },
-  { id:2, nombre:'Aceite de Masaje',        categoria:'Masajes',    stock:8,  stockMinimo:3,  precio:650,  activo:true },
-  { id:3, nombre:'Cera para Depilación',    categoria:'Depilación', stock:2,  stockMinimo:5,  precio:450,  activo:true },
-  { id:4, nombre:'Esmalte Semipermanente',  categoria:'Uñas',       stock:24, stockMinimo:10, precio:350,  activo:true },
-];
+// Secciones con create/edit real contra el backend
+const SECCIONES_CON_CREAR = ['sucursales', 'empleados', 'expedientes'];
+// Secciones aún no implementadas — solo muestran un aviso
+const SECCIONES_PROXIMAMENTE: Seccion[] = ['paquetes', 'consentimiento'];
+
+const ID_SUCURSAL_DEFAULT = 1; // AuraSpa Principal — única sucursal activa
+
+// ── DATOS INICIALES (secciones fuera de alcance: siguen locales) ───────────────
 const INIT_EXPEDIENTES = [
   { id:1, cliente:'Gabriela Duverge', alergias:'Ninguna', tipoPiel:'Mixta', medicamentos:'Ninguno', notas:'Prefiere masaje suave', activo:true },
   { id:2, cliente:'Diana Lantigua',   alergias:'Látex',   tipoPiel:'Seca',  medicamentos:'Ninguno', notas:'Piel sensible',         activo:true },
-];
-const INIT_PAQUETES = [
-  { id:1, nombre:'Paquete Relajación Total', sesiones:5, sesionesUsadas:2, cliente:'Gabriela Duverge', vencimiento:'30/09/2026', activo:true },
-  { id:2, nombre:'Paquete Facial Premium',   sesiones:3, sesionesUsadas:0, cliente:'Diana Lantigua',   vencimiento:'31/08/2026', activo:true },
-];
-const INIT_CONSENTIMIENTO = [
-  { id:1, cliente:'Gabriela Duverge', servicio:'Facial Hidratante', fecha:'05/06/2026', estado:'Firmado'  },
-  { id:2, cliente:'Diana Lantigua',   servicio:'Depilación Piernas',fecha:'01/06/2026', estado:'Firmado'  },
-  { id:3, cliente:'Jorge Melo',       servicio:'Masaje Relajante',  fecha:'20/05/2026', estado:'Pendiente'},
 ];
 const INIT_AUDITORIA = [
   { id:1, usuario:'admin',   accion:'Modificó precio de Facial Hidratante', valorAnterior:'RD$ 1,500.00', valorNuevo:'RD$ 1,800.00', fecha:'05/06/2026 09:15' },
@@ -66,8 +31,6 @@ const INIT_AUDITORIA = [
 // ── VALIDACIONES ───────────────────────────────────────────────────────────────
 const soloLetras   = (v: string) => v.replace(/[^a-záéíóúñüA-ZÁÉÍÓÚÑÜ\s'-]/g, '');
 const soloNumeros  = (v: string) => v.replace(/\D/g, '').slice(0, 9);
-const soloDecimal  = (v: string) => v.replace(/[^\d.]/g, '');
-const soloEntero   = (v: string) => v.replace(/\D/g, '');
 
 // ── ESTILOS ────────────────────────────────────────────────────────────────────
 const iS: React.CSSProperties = { width:'100%', padding:'10px 15px', borderRadius:'12px', border:'1px solid #e0d8f5', outline:'none', background:'#fcfcfc', fontSize:'0.88rem', boxSizing:'border-box' };
@@ -109,30 +72,73 @@ const Core: React.FC = () => {
   const [editId, setEditId]         = useState<number|null>(null);
   const [confirmDel, setConfirmDel] = useState<{id:number;nombre:string}|null>(null);
   const [confirmSave, setConfirmSave]= useState(false);
-  const [guardadoOk, setGuardadoOk] = useState(false);
+  const [guardadoOk, setGuardadoOk] = useState<string|null>(null);
+  const [errorToast, setErrorToast] = useState<string|null>(null);
+  const [cargando, setCargando]     = useState(false);
 
-  const [sucursales,      setSucursales]      = useState(INIT_SUCURSALES);
-  const [perfiles,        setPerfiles]        = useState(INIT_PERFILES);
-  const [usuarios,        setUsuarios]        = useState(INIT_USUARIOS);
-  const [empleados,       setEmpleados]       = useState(INIT_EMPLEADOS);
-  const [servicios,       setServicios]       = useState(INIT_SERVICIOS);
-  const [inventario,      setInventario]      = useState(INIT_INVENTARIO);
+  const [sucursales,      setSucursales]      = useState<any[]>([]);
+  const [perfiles,        setPerfiles]        = useState<any[]>([]);
+  const [usuarios,        setUsuarios]        = useState<any[]>([]);
+  const [empleados,       setEmpleados]       = useState<any[]>([]);
+  const [servicios,       setServicios]       = useState<any[]>([]);
+  const [inventario,      setInventario]      = useState<any[]>([]);
   const [expedientes,     setExpedientes]     = useState(INIT_EXPEDIENTES);
-  const [paquetes,        setPaquetes]        = useState(INIT_PAQUETES);
-  const [consentimientos, setConsentimientos] = useState(INIT_CONSENTIMIENTO);
-  const [auditoriaLog, setAuditoriaLog] = useState(INIT_AUDITORIA);
+  const [auditoriaLog] = useState(INIT_AUDITORIA);
 
-  const registrarAuditoria = (accion: string, valorAnterior: string, valorNuevo: string) => {
-    const nuevo = {
-      id: Date.now(),
-      usuario: user?.nombre || 'admin',
-      accion,
-      valorAnterior,
-      valorNuevo,
-      fecha: new Date().toLocaleString('es-DO', { day:'2-digit', month:'2-digit', year:'numeric', hour:'2-digit', minute:'2-digit' })
-    };
-    setAuditoriaLog(prev => [nuevo, ...prev]);
+  const mostrarToast = (msg: string, esError = false) => {
+    if (esError) { setErrorToast(msg); setTimeout(() => setErrorToast(null), 3000); }
+    else         { setGuardadoOk(msg); setTimeout(() => setGuardadoOk(null), 3000); }
   };
+
+  const cargarSucursales = useCallback(async () => {
+    try { const r = await apiClient.get('/api/core/sucursales'); setSucursales(r.data); } catch { setSucursales([]); }
+  }, []);
+  const cargarPerfiles = useCallback(async () => {
+    try { const r = await apiClient.get('/api/core/perfiles'); setPerfiles(r.data); } catch { setPerfiles([]); }
+  }, []);
+  const cargarUsuarios = useCallback(async () => {
+    try { const r = await apiClient.get('/api/core/usuarios'); setUsuarios(r.data); } catch { setUsuarios([]); }
+  }, []);
+  const cargarEmpleados = useCallback(async () => {
+    try { const r = await apiClient.get('/api/core/empleados'); setEmpleados(r.data); } catch { setEmpleados([]); }
+  }, []);
+  const cargarServicios = useCallback(async () => {
+    try {
+      const r = await apiClient.get('/api/catalog/services');
+      setServicios(r.data.map((s:any) => ({
+        id: s.idItem, nombre: s.nombre, categoria: s.categoria?.nombre ?? '',
+        precio: s.precioBase, duracion: s.duracionMinutos ?? 0, activo: s.activo
+      })));
+    } catch { setServicios([]); }
+  }, []);
+  const cargarInventario = useCallback(async () => {
+    try {
+      const idSuc = sucursales[0]?.id ?? ID_SUCURSAL_DEFAULT;
+      const r = await apiClient.get(`/api/inventario/stock/${idSuc}`);
+      setInventario(r.data.map((i:any) => ({
+        id: i.idItem, nombre: i.nombre, categoria: i.categoria,
+        stock: i.stock ?? 0, stockMinimo: i.stockMinimo, activo: i.disponible
+      })));
+    } catch { setInventario([]); }
+  }, [sucursales]);
+
+  // Sucursales se cargan siempre al montar — las necesita el formulario de Empleados
+  useEffect(() => { cargarSucursales(); }, [cargarSucursales]);
+
+  useEffect(() => {
+    const cargarSeccion = async () => {
+      if (seccion==='sucursales') { setCargando(true); await cargarSucursales(); }
+      else if (seccion==='perfiles')   { setCargando(true); await cargarPerfiles(); }
+      else if (seccion==='usuarios')   { setCargando(true); await cargarUsuarios(); }
+      else if (seccion==='empleados')  { setCargando(true); await cargarEmpleados(); }
+      else if (seccion==='servicios')  { setCargando(true); await cargarServicios(); }
+      else if (seccion==='inventario') { setCargando(true); await cargarInventario(); }
+      else return;
+      setCargando(false);
+    };
+    cargarSeccion();
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [seccion]);
 
   // Formulario dinámico — estado controlado
   const [form, setForm] = useState<Record<string,string>>({});
@@ -150,114 +156,78 @@ const Core: React.FC = () => {
     let datos: Record<string,string> = {};
     if (seccion==='sucursales') {
       const r = sucursales.find(x=>x.id===id)!;
-      datos = { nombre:r.nombre, direccion:r.direccion, telefono:r.telefono };
-    } else if (seccion==='perfiles') {
-      const r = perfiles.find(x=>x.id===id)!;
-      datos = { nombre:r.nombre, descripcion:r.descripcion };
-    } else if (seccion==='usuarios') {
-      const r = usuarios.find(x=>x.id===id)!;
-      datos = { nombre:r.nombre, email:r.email, perfil:r.perfil };
+      datos = { nombre:r.nombre, direccion:r.direccion, telefono:r.telefono||'' };
     } else if (seccion==='empleados') {
       const r = empleados.find(x=>x.id===id)!;
-      datos = { nombres:r.nombres, apellidos:r.apellidos, documento:r.documento, tipoEmpleado:r.tipoEmpleado, telefono:r.telefono, sucursal:r.sucursal };
-    } else if (seccion==='servicios') {
-      const r = servicios.find(x=>x.id===id)!;
-      datos = { nombre:r.nombre, categoria:r.categoria, precio:String(r.precio), duracion:String(r.duracion) };
-    } else if (seccion==='inventario') {
-      const r = inventario.find(x=>x.id===id)!;
-      datos = { nombre:r.nombre, categoria:r.categoria, stock:String(r.stock), stockMinimo:String(r.stockMinimo), precio:String(r.precio) };
+      datos = { nombres:r.nombres, apellidos:r.apellidos, documento:r.documento, tipoEmpleado:r.tipoEmpleado, telefono:r.telefono||'', sucursal:r.sucursal };
     } else if (seccion==='expedientes') {
       const r = expedientes.find(x=>x.id===id)!;
       datos = { cliente:r.cliente, alergias:r.alergias, tipoPiel:r.tipoPiel, medicamentos:r.medicamentos, notas:r.notas };
-    } else if (seccion==='paquetes') {
-      const r = paquetes.find(x=>x.id===id)!;
-      datos = { nombre:r.nombre, sesiones:String(r.sesiones), cliente:r.cliente, vencimiento:r.vencimiento };
-    } else if (seccion==='consentimiento') {
-      const r = consentimientos.find(x=>x.id===id)!;
-      datos = { cliente:r.cliente, servicio:r.servicio, estado:r.estado };
     }
     setForm(datos);
     setModalOpen(true);
   };
 
-  // Soft delete: marca activo=false en vez de borrar
-  const softDelete = (id: number) => {
-    if (seccion==='sucursales')  setSucursales(p=>p.map(x=>x.id===id?{...x,activo:false}:x));
-    if (seccion==='perfiles')    setPerfiles(p=>p.filter(x=>x.id!==id));
-    if (seccion==='usuarios')    setUsuarios(p=>p.map(x=>x.id===id?{...x,activo:false}:x));
-    if (seccion==='empleados')   setEmpleados(p=>p.map(x=>x.id===id?{...x}:x).filter(x=>x.id!==id));
-    if (seccion==='servicios')   setServicios(p=>p.map(x=>x.id===id?{...x,activo:false}:x));
-    if (seccion==='inventario')  setInventario(p=>p.map(x=>x.id===id?{...x,activo:false}:x));
-    if (seccion==='expedientes') setExpedientes(p=>p.map(x=>x.id===id?{...x,activo:false}:x));
-    if (seccion==='paquetes')    setPaquetes(p=>p.map(x=>x.id===id?{...x,activo:false}:x));
-    if (seccion==='consentimiento') setConsentimientos(p=>p.filter(x=>x.id!==id));
+  // Soft delete: solo Sucursales tiene endpoint real; Expedientes sigue local (fuera de alcance)
+  const softDelete = async (id: number) => {
+    if (seccion==='sucursales') {
+      try {
+        await apiClient.delete(`/api/core/sucursales/${id}`);
+        await cargarSucursales();
+        mostrarToast('Sucursal desactivada correctamente.');
+      } catch {
+        mostrarToast('No se pudo desactivar la sucursal.', true);
+      }
+    } else if (seccion==='expedientes') {
+      setExpedientes(p=>p.map(x=>x.id===id?{...x,activo:false}:x));
+    }
     setConfirmDel(null);
   };
 
-  const guardar = () => {
-    const id = editId ?? Date.now();
-    if (seccion==='sucursales') {
-      if (editId) setSucursales(p=>p.map(x=>x.id===editId?{...x,nombre:form.nombre||x.nombre,direccion:form.direccion||x.direccion,telefono:form.telefono||x.telefono}:x));
-      else        setSucursales(p=>[...p,{id,nombre:form.nombre||'Nueva Sucursal',direccion:form.direccion||'',telefono:form.telefono||'',activo:true}]);
-    } else if (seccion==='perfiles') {
-      if (editId) setPerfiles(p=>p.map(x=>x.id===editId?{...x,nombre:form.nombre||x.nombre,descripcion:form.descripcion||x.descripcion}:x));
-      else        setPerfiles(p=>[...p,{id,nombre:form.nombre||'Nuevo Perfil',descripcion:form.descripcion||''}]);
-    } else if (seccion==='usuarios') {
-      if (editId) setUsuarios(p=>p.map(x=>x.id===editId?{...x,nombre:form.nombre||x.nombre,email:form.email||x.email,perfil:form.perfil||x.perfil}:x));
-      else        setUsuarios(p=>[...p,{id,nombre:form.nombre||'',email:form.email||'',perfil:form.perfil||'Cliente',activo:true}]);
-    } else if (seccion==='empleados') {
-      if (editId) setEmpleados(p=>p.map(x=>x.id===editId?{...x,...form,telefono:form.telefono||x.telefono}:x));
-      else        setEmpleados(p=>[...p,{id,nombres:form.nombres||'',apellidos:form.apellidos||'',documento:form.documento||'',tipoEmpleado:form.tipoEmpleado||'Especialista',telefono:form.telefono||'',sucursal:form.sucursal||'AuraSpa Piantini'}]);
-    } else if (seccion==='servicios') {
-      if (editId) {
-        const anterior = servicios.find(x=>x.id===editId);
-        const nuevoPrecio = parseFloat(form.precio)||anterior?.precio||0;
-        if (anterior && nuevoPrecio !== anterior.precio) {
-          registrarAuditoria(
-            `Modificó precio de ${anterior.nombre}`,
-            `RD$ ${anterior.precio.toLocaleString('es-DO',{minimumFractionDigits:2})}`,
-            `RD$ ${nuevoPrecio.toLocaleString('es-DO',{minimumFractionDigits:2})}`
-          );
-        }
-        setServicios(p=>p.map(x=>x.id===editId?{...x,nombre:form.nombre||x.nombre,categoria:form.categoria||x.categoria,precio:nuevoPrecio,duracion:parseInt(form.duracion)||x.duracion}:x));
-      } else setServicios(p=>[...p,{id,nombre:form.nombre||'',categoria:form.categoria||'Facial',precio:parseFloat(form.precio)||0,duracion:parseInt(form.duracion)||60,activo:true}]);
-    } else if (seccion==='inventario') {
-      if (editId) {
-        const anterior = inventario.find(x=>x.id===editId);
-        const nuevoStock  = parseInt(form.stock)||anterior?.stock||0;
-        const nuevoPrecio = parseFloat(form.precio)||anterior?.precio||0;
-        if (anterior && nuevoStock !== anterior.stock) {
-          registrarAuditoria(
-            `Ajustó stock de ${anterior.nombre}`,
-            `Stock: ${anterior.stock}`,
-            `Stock: ${nuevoStock}`
-          );
-        }
-        if (anterior && nuevoPrecio !== anterior.precio) {
-          registrarAuditoria(
-            `Modificó precio de ${anterior.nombre}`,
-            `RD$ ${anterior.precio.toLocaleString('es-DO',{minimumFractionDigits:2})}`,
-            `RD$ ${nuevoPrecio.toLocaleString('es-DO',{minimumFractionDigits:2})}`
-          );
-        }
-        setInventario(p=>p.map(x=>x.id===editId?{...x,nombre:form.nombre||x.nombre,categoria:form.categoria||x.categoria,stock:nuevoStock,stockMinimo:parseInt(form.stockMinimo)||x.stockMinimo,precio:nuevoPrecio}:x));
-      } else setInventario(p=>[...p,{id,nombre:form.nombre||'',categoria:form.categoria||'General',stock:parseInt(form.stock)||0,stockMinimo:parseInt(form.stockMinimo)||5,precio:parseFloat(form.precio)||0,activo:true}]);
-    } else if (seccion==='expedientes') {
-      if (editId) setExpedientes(p=>p.map(x=>x.id===editId?{...x,alergias:form.alergias||x.alergias,tipoPiel:form.tipoPiel||x.tipoPiel,medicamentos:form.medicamentos||x.medicamentos,notas:form.notas||x.notas}:x));
-      else        setExpedientes(p=>[...p,{id,cliente:form.cliente||'',alergias:form.alergias||'Ninguna',tipoPiel:form.tipoPiel||'Normal',medicamentos:form.medicamentos||'Ninguno',notas:form.notas||'',activo:true}]);
-    } else if (seccion==='paquetes') {
-      if (editId) setPaquetes(p=>p.map(x=>x.id===editId?{...x,nombre:form.nombre||x.nombre,sesiones:parseInt(form.sesiones)||x.sesiones,cliente:form.cliente||x.cliente,vencimiento:form.vencimiento||x.vencimiento}:x));
-      else        setPaquetes(p=>[...p,{id,nombre:form.nombre||'',sesiones:parseInt(form.sesiones)||1,sesionesUsadas:0,cliente:form.cliente||'',vencimiento:form.vencimiento||'',activo:true}]);
-    } else if (seccion==='consentimiento') {
-      if (editId) setConsentimientos(p=>p.map(x=>x.id===editId?{...x,estado:form.estado||x.estado}:x));
-      else        setConsentimientos(p=>[...p,{id,cliente:form.cliente||'',servicio:form.servicio||'',fecha:new Date().toLocaleDateString('es-DO'),estado:'Pendiente'}]);
+  const toggleUsuario = async (id: number) => {
+    try {
+      await apiClient.put(`/api/core/usuarios/${id}/toggle`);
+      await cargarUsuarios();
+      mostrarToast('Estado del usuario actualizado correctamente.');
+    } catch {
+      mostrarToast('No se pudo actualizar el usuario.', true);
     }
-    setConfirmSave(false);
-    setModalOpen(false);
-    setEditId(null);
-    setForm({});
-    setGuardadoOk(true);
-    setTimeout(()=>setGuardadoOk(false),2500);
+  };
+
+  const guardar = async () => {
+    try {
+      if (seccion==='sucursales') {
+        const payload = { nombre: form.nombre||'', direccion: form.direccion||'', telefono: form.telefono||null };
+        if (editId) await apiClient.put(`/api/core/sucursales/${editId}`, payload);
+        else        await apiClient.post('/api/core/sucursales', payload);
+        await cargarSucursales();
+        mostrarToast(editId ? 'Sucursal actualizada correctamente.' : 'Sucursal creada correctamente.');
+      } else if (seccion==='empleados') {
+        const idSucursal = sucursales.find(s=>s.nombre===form.sucursal)?.id ?? sucursales[0]?.id ?? ID_SUCURSAL_DEFAULT;
+        const payload = {
+          nombres: form.nombres||'', apellidos: form.apellidos||'', numeroDocumento: form.documento||'',
+          tipoEmpleado: form.tipoEmpleado||'Especialista', telefono: form.telefono||null, idSucursal
+        };
+        if (editId) await apiClient.put(`/api/core/empleados/${editId}`, payload);
+        else        await apiClient.post('/api/core/empleados', payload);
+        await cargarEmpleados();
+        mostrarToast(editId ? 'Empleado actualizado correctamente.' : 'Empleado creado correctamente.');
+      } else if (seccion==='expedientes') {
+        // Fuera de alcance del backend — sigue en memoria local
+        const id = editId ?? Date.now();
+        if (editId) setExpedientes(p=>p.map(x=>x.id===editId?{...x,alergias:form.alergias||x.alergias,tipoPiel:form.tipoPiel||x.tipoPiel,medicamentos:form.medicamentos||x.medicamentos,notas:form.notas||x.notas}:x));
+        else        setExpedientes(p=>[...p,{id,cliente:form.cliente||'',alergias:form.alergias||'Ninguna',tipoPiel:form.tipoPiel||'Normal',medicamentos:form.medicamentos||'Ninguno',notas:form.notas||'',activo:true}]);
+        mostrarToast('Guardado correctamente.');
+      }
+    } catch (err: any) {
+      const msg = err.response?.data;
+      mostrarToast(typeof msg === 'string' ? msg : 'No se pudo guardar. Intenta de nuevo.', true);
+    } finally {
+      setConfirmSave(false);
+      setModalOpen(false);
+      setEditId(null);
+      setForm({});
+    }
   };
 
   const tabs = [
@@ -290,30 +260,6 @@ const Core: React.FC = () => {
           <input value={form.direccion||''} onChange={e=>setF('direccion',e.target.value)} placeholder="Dirección completa" style={iS}/></div>
       </>
     );
-    else if (seccion==='perfiles') campos = (
-      <>
-        <div style={{marginBottom:'14px'}}><label style={lS}>Nombre del perfil</label>
-          <input value={form.nombre||''} onChange={e=>setF('nombre',soloLetras(e.target.value))} placeholder="Ej: Especialista" style={iS}/></div>
-        <div style={{marginBottom:'14px'}}><label style={lS}>Descripción</label>
-          <input value={form.descripcion||''} onChange={e=>setF('descripcion',e.target.value)} placeholder="Describe el rol" style={iS}/></div>
-      </>
-    );
-    else if (seccion==='usuarios') campos = (
-      <>
-        <div style={{display:'grid',gridTemplateColumns:'1fr 1fr',gap:'14px',marginBottom:'14px'}}>
-          <div><label style={lS}>Usuario</label>
-            <input value={form.nombre||''} onChange={e=>setF('nombre',e.target.value)} placeholder="nombre.usuario" style={iS}/></div>
-          <div><label style={lS}>Email</label>
-            <input type="email" value={form.email||''} onChange={e=>setF('email',e.target.value)} placeholder="usuario@auraspa.com" style={iS}/></div>
-        </div>
-        <div style={{marginBottom:'14px'}}><label style={lS}>Perfil</label>
-          <select value={form.perfil||'Cliente'} onChange={e=>setF('perfil',e.target.value)} style={iS}>
-            {['Admin','Cajero','Especialista','Cliente'].map(p=><option key={p}>{p}</option>)}
-          </select></div>
-        {!editId && <div style={{marginBottom:'14px'}}><label style={lS}>Contraseña temporal</label>
-          <input type="password" value={form.password||''} onChange={e=>setF('password',e.target.value)} placeholder="Mín. 8 caracteres" style={iS}/></div>}
-      </>
-    );
     else if (seccion==='empleados') campos = (
       <>
         <div style={{display:'grid',gridTemplateColumns:'1fr 1fr',gap:'14px',marginBottom:'14px'}}>
@@ -340,42 +286,6 @@ const Core: React.FC = () => {
         </div>
       </>
     );
-    else if (seccion==='servicios') campos = (
-      <>
-        <div style={{display:'grid',gridTemplateColumns:'1fr 1fr',gap:'14px',marginBottom:'14px'}}>
-          <div><label style={lS}>Nombre del servicio</label>
-            <input value={form.nombre||''} onChange={e=>setF('nombre',e.target.value)} placeholder="Ej: Facial Hidratante" style={iS}/></div>
-          <div><label style={lS}>Categoría</label>
-            <select value={form.categoria||'Facial'} onChange={e=>setF('categoria',e.target.value)} style={iS}>
-              {['Facial','Masaje','Depilación','Cejas','Uñas','Pelo'].map(c=><option key={c}>{c}</option>)}
-            </select></div>
-        </div>
-        <div style={{display:'grid',gridTemplateColumns:'1fr 1fr',gap:'14px',marginBottom:'14px'}}>
-          <div><label style={lS}>Precio (RD$)</label>
-            <input value={form.precio||''} onChange={e=>setF('precio',soloDecimal(e.target.value))} placeholder="0.00" style={iS}/></div>
-          <div><label style={lS}>Duración (minutos)</label>
-            <input value={form.duracion||''} onChange={e=>setF('duracion',soloEntero(e.target.value))} placeholder="60" style={iS}/></div>
-        </div>
-      </>
-    );
-    else if (seccion==='inventario') campos = (
-      <>
-        <div style={{display:'grid',gridTemplateColumns:'1fr 1fr',gap:'14px',marginBottom:'14px'}}>
-          <div><label style={lS}>Nombre del producto</label>
-            <input value={form.nombre||''} onChange={e=>setF('nombre',e.target.value)} placeholder="Ej: Crema Hidratante" style={iS}/></div>
-          <div><label style={lS}>Categoría</label>
-            <input value={form.categoria||''} onChange={e=>setF('categoria',soloLetras(e.target.value))} placeholder="Skincare" style={iS}/></div>
-        </div>
-        <div style={{display:'grid',gridTemplateColumns:'1fr 1fr 1fr',gap:'14px',marginBottom:'14px'}}>
-          <div><label style={lS}>Stock actual</label>
-            <input value={form.stock||''} onChange={e=>setF('stock',soloEntero(e.target.value))} placeholder="0" style={iS}/></div>
-          <div><label style={lS}>Stock mínimo</label>
-            <input value={form.stockMinimo||''} onChange={e=>setF('stockMinimo',soloEntero(e.target.value))} placeholder="5" style={iS}/></div>
-          <div><label style={lS}>Precio (RD$)</label>
-            <input value={form.precio||''} onChange={e=>setF('precio',soloDecimal(e.target.value))} placeholder="0.00" style={iS}/></div>
-        </div>
-      </>
-    );
     else if (seccion==='expedientes') campos = (
       <>
         <div style={{marginBottom:'14px'}}><label style={lS}>Cliente</label>
@@ -396,37 +306,6 @@ const Core: React.FC = () => {
         </div>
       </>
     );
-    else if (seccion==='paquetes') campos = (
-      <>
-        <div style={{display:'grid',gridTemplateColumns:'1fr 1fr',gap:'14px',marginBottom:'14px'}}>
-          <div><label style={lS}>Nombre del paquete</label>
-            <input value={form.nombre||''} onChange={e=>setF('nombre',e.target.value)} placeholder="Ej: Paquete Relajación" style={iS}/></div>
-          <div><label style={lS}>Número de sesiones</label>
-            <input value={form.sesiones||''} onChange={e=>setF('sesiones',soloEntero(e.target.value))} placeholder="5" style={iS}/></div>
-        </div>
-        <div style={{display:'grid',gridTemplateColumns:'1fr 1fr',gap:'14px',marginBottom:'14px'}}>
-          <div><label style={lS}>Cliente</label>
-            <input value={form.cliente||''} onChange={e=>setF('cliente',soloLetras(e.target.value))} placeholder="Nombre del cliente" style={iS}/></div>
-          <div><label style={lS}>Fecha de vencimiento</label>
-            <input value={form.vencimiento||''} onChange={e=>setF('vencimiento',e.target.value)} placeholder="DD/MM/AAAA" style={iS}/></div>
-        </div>
-      </>
-    );
-    else if (seccion==='consentimiento') campos = (
-      <>
-        <div style={{display:'grid',gridTemplateColumns:'1fr 1fr',gap:'14px',marginBottom:'14px'}}>
-          <div><label style={lS}>Cliente</label>
-            <input value={form.cliente||''} onChange={e=>setF('cliente',soloLetras(e.target.value))} placeholder="Nombre del cliente" style={iS} readOnly={!!editId}/></div>
-          <div><label style={lS}>Servicio</label>
-            <input value={form.servicio||''} onChange={e=>setF('servicio',e.target.value)} placeholder="Servicio a realizar" style={iS} readOnly={!!editId}/></div>
-        </div>
-        <div style={{marginBottom:'14px'}}><label style={lS}>Estado</label>
-          <select value={form.estado||'Pendiente'} onChange={e=>setF('estado',e.target.value)} style={iS}>
-            {['Pendiente','Firmado','Rechazado'].map(s=><option key={s}>{s}</option>)}
-          </select></div>
-      </>
-    );
-
     return (
       <div className="card-aura" style={{padding:'25px',marginBottom:'20px',borderLeft:'4px solid var(--aura-lavender)'}}>
         <div style={{display:'flex',justifyContent:'space-between',alignItems:'center',marginBottom:'20px'}}>
@@ -485,11 +364,17 @@ const Core: React.FC = () => {
         </div>
       )}
 
-      {/* ── Toast éxito ── */}
+      {/* ── Toast éxito / error ── */}
       {guardadoOk && (
         <div style={{position:'fixed',top:'20px',right:'20px',background:'#f0fdf4',border:'1px solid #86efac',borderRadius:'14px',padding:'14px 20px',zIndex:3000,display:'flex',alignItems:'center',gap:'8px',boxShadow:'0 4px 20px rgba(0,0,0,0.1)'}}>
           <CheckCircle size={18} color="#22c55e"/>
-          <span style={{color:'#16a34a',fontWeight:'600',fontSize:'0.9rem'}}>Guardado correctamente.</span>
+          <span style={{color:'#16a34a',fontWeight:'600',fontSize:'0.9rem'}}>{guardadoOk}</span>
+        </div>
+      )}
+      {errorToast && (
+        <div style={{position:'fixed',top:'20px',right:'20px',background:'#fef2f2',border:'1px solid #fecaca',borderRadius:'14px',padding:'14px 20px',zIndex:3000,display:'flex',alignItems:'center',gap:'8px',boxShadow:'0 4px 20px rgba(0,0,0,0.1)'}}>
+          <XCircle size={18} color="#ef4444"/>
+          <span style={{color:'#b91c1c',fontWeight:'600',fontSize:'0.9rem'}}>{errorToast}</span>
         </div>
       )}
 
@@ -533,20 +418,24 @@ const Core: React.FC = () => {
       <div style={{padding:'28px 40px'}}>
 
         {/* Encabezado de sección + botón agregar */}
-        {seccion !== 'auditoria' && (
+        {seccion !== 'auditoria' && !SECCIONES_PROXIMAMENTE.includes(seccion) && (
           <div style={{display:'flex',justifyContent:'space-between',alignItems:'center',marginBottom:'18px',flexWrap:'wrap',gap:'10px'}}>
             <div>
               <h3 style={{color:'var(--aura-navy)',fontWeight:'bold',margin:0,textTransform:'capitalize'}}>{seccion}</h3>
               <p style={{color:'#888',margin:0,fontSize:'0.83rem'}}>Gestión de {seccion} del sistema</p>
             </div>
-            <button onClick={abrirCrear} className="btn-AuraSpa" style={{padding:'10px 18px',display:'flex',alignItems:'center',gap:'6px',fontSize:'0.85rem'}}>
-              <Plus size={15}/> Nuevo registro
-            </button>
+            {SECCIONES_CON_CREAR.includes(seccion) && (
+              <button onClick={abrirCrear} className="btn-AuraSpa" style={{padding:'10px 18px',display:'flex',alignItems:'center',gap:'6px',fontSize:'0.85rem'}}>
+                <Plus size={15}/> Nuevo registro
+              </button>
+            )}
           </div>
         )}
 
+        {cargando && <p style={{textAlign:'center',color:'var(--aura-gray)',padding:'40px'}}>Cargando...</p>}
+
         {/* Formulario (crear / editar) */}
-        {modalOpen && seccion !== 'auditoria' && renderForm()}
+        {modalOpen && SECCIONES_CON_CREAR.includes(seccion) && renderForm()}
 
         {/* ── SUCURSALES ── */}
         {seccion==='sucursales' && (
@@ -564,31 +453,35 @@ const Core: React.FC = () => {
           </div>
         )}
 
-        {/* ── PERFILES ── */}
+        {/* ── PERFILES (solo lectura) ── */}
         {seccion==='perfiles' && (
           <div className="card-aura" style={{overflow:'hidden',padding:0}}>
             <table style={{width:'100%',borderCollapse:'collapse'}}>
-              <TH cols={['Nombre','Descripción','Acciones']}/>
+              <TH cols={['Nombre','Descripción']}/>
               <tbody>{filtrar(perfiles).map((p,i)=>(
                 <tr key={p.id} style={{borderBottom:'1px solid #f0edf5',background:i%2===0?'white':'#faf9ff'}}>
                   <td style={tdB}>{p.nombre}</td><td style={tdS}>{p.descripcion}</td>
-                  <Btns onEdit={()=>abrirEditar(p.id)} onDelete={()=>setConfirmDel({id:p.id,nombre:p.nombre})}/>
                 </tr>
               ))}</tbody>
             </table>
           </div>
         )}
 
-        {/* ── USUARIOS ── */}
+        {/* ── USUARIOS (activar/desactivar) ── */}
         {seccion==='usuarios' && (
           <div className="card-aura" style={{overflow:'hidden',padding:0}}>
             <table style={{width:'100%',borderCollapse:'collapse'}}>
-              <TH cols={['Usuario','Email','Perfil','Estado','Acciones']}/>
+              <TH cols={['Nombre','Email','Perfil','Estado','Acciones']}/>
               <tbody>{filtrar(usuarios,'nombre').map((u,i)=>(
                 <tr key={u.id} style={{borderBottom:'1px solid #f0edf5',background:i%2===0?'white':'#faf9ff'}}>
-                  <td style={tdB}>{u.nombre}</td><td style={tdS}>{u.email}</td><td style={tdS}>{u.perfil}</td>
+                  <td style={tdB}>{u.nombre} {u.apellido}</td><td style={tdS}>{u.email}</td><td style={tdS}>{u.perfil}</td>
                   <td style={tdS}><BadgeActivo activo={u.activo}/></td>
-                  <Btns onEdit={()=>abrirEditar(u.id)} onDelete={()=>setConfirmDel({id:u.id,nombre:u.nombre})}/>
+                  <td style={{padding:'10px 14px'}}>
+                    <button onClick={()=>toggleUsuario(u.id)}
+                      style={{background:u.activo?'#fef2f2':'#f0fdf4',border:'none',cursor:'pointer',color:u.activo?'#ef4444':'#22c55e',padding:'6px 14px',borderRadius:'20px',fontSize:'0.78rem',fontWeight:'600'}}>
+                      {u.activo ? 'Desactivar' : 'Activar'}
+                    </button>
+                  </td>
                 </tr>
               ))}</tbody>
             </table>
@@ -604,42 +497,41 @@ const Core: React.FC = () => {
                 <tr key={e.id} style={{borderBottom:'1px solid #f0edf5',background:i%2===0?'white':'#faf9ff'}}>
                   <td style={tdB}>{e.nombres} {e.apellidos}</td><td style={tdS}>{e.documento}</td>
                   <td style={tdS}>{e.tipoEmpleado}</td><td style={tdS}>{e.telefono}</td><td style={tdS}>{e.sucursal}</td>
-                  <Btns onEdit={()=>abrirEditar(e.id)} onDelete={()=>setConfirmDel({id:e.id,nombre:e.nombres+' '+e.apellidos})}/>
+                  <td style={{padding:'10px 14px'}}>
+                    <button onClick={()=>abrirEditar(e.id)} title="Editar" style={{background:'#f0ecff',border:'none',cursor:'pointer',color:'var(--aura-lavender)',padding:'5px 10px',borderRadius:'8px'}}><Edit size={13}/></button>
+                  </td>
                 </tr>
               ))}</tbody>
             </table>
           </div>
         )}
 
-        {/* ── SERVICIOS ── */}
+        {/* ── SERVICIOS (solo lectura) ── */}
         {seccion==='servicios' && (
           <div className="card-aura" style={{overflow:'hidden',padding:0}}>
             <table style={{width:'100%',borderCollapse:'collapse'}}>
-              <TH cols={['Nombre','Categoría','Precio','Duración','Estado','Acciones']}/>
+              <TH cols={['Nombre','Categoría','Precio','Duración','Estado']}/>
               <tbody>{filtrar(servicios).map((s,i)=>(
                 <tr key={s.id} style={{borderBottom:'1px solid #f0edf5',background:i%2===0?'white':'#faf9ff'}}>
                   <td style={tdB}>{s.nombre}</td><td style={tdS}>{s.categoria}</td>
                   <td style={tdS}>RD$ {s.precio.toLocaleString()}</td><td style={tdS}>{s.duracion} min</td>
                   <td style={tdS}><BadgeActivo activo={s.activo}/></td>
-                  <Btns onEdit={()=>abrirEditar(s.id)} onDelete={()=>setConfirmDel({id:s.id,nombre:s.nombre})}/>
                 </tr>
               ))}</tbody>
             </table>
           </div>
         )}
 
-        {/* ── INVENTARIO ── */}
+        {/* ── INVENTARIO (solo lectura) ── */}
         {seccion==='inventario' && (
           <div className="card-aura" style={{overflow:'hidden',padding:0}}>
             <table style={{width:'100%',borderCollapse:'collapse'}}>
-              <TH cols={['Producto','Categoría','Stock','Stock Mín.','Precio','Estado','Acciones']}/>
+              <TH cols={['Producto','Categoría','Stock','Stock Mín.']}/>
               <tbody>{filtrar(inventario).map((item,i)=>(
                 <tr key={item.id} style={{borderBottom:'1px solid #f0edf5',background:i%2===0?'white':'#faf9ff'}}>
                   <td style={tdB}>{item.nombre}</td><td style={tdS}>{item.categoria}</td>
                   <td style={tdS}><span style={{color:item.stock<=item.stockMinimo?'#ef4444':'inherit',fontWeight:item.stock<=item.stockMinimo?'700':'400'}}>{item.stock}</span></td>
-                  <td style={tdS}>{item.stockMinimo}</td><td style={tdS}>RD$ {item.precio.toLocaleString()}</td>
-                  <td style={tdS}><BadgeActivo activo={(item as any).activo??true}/></td>
-                  <Btns onEdit={()=>abrirEditar(item.id)} onDelete={()=>setConfirmDel({id:item.id,nombre:item.nombre})}/>
+                  <td style={tdS}>{item.stockMinimo}</td>
                 </tr>
               ))}</tbody>
             </table>
@@ -663,42 +555,11 @@ const Core: React.FC = () => {
           </div>
         )}
 
-        {/* ── PAQUETES ── */}
-        {seccion==='paquetes' && (
-          <div className="card-aura" style={{overflow:'hidden',padding:0}}>
-            <table style={{width:'100%',borderCollapse:'collapse'}}>
-              <TH cols={['Paquete','Cliente','Sesiones','Usadas','Restantes','Vencimiento','Estado','Acciones']}/>
-              <tbody>{filtrar(paquetes).map((p,i)=>(
-                <tr key={p.id} style={{borderBottom:'1px solid #f0edf5',background:i%2===0?'white':'#faf9ff'}}>
-                  <td style={tdB}>{p.nombre}</td><td style={tdS}>{p.cliente}</td>
-                  <td style={tdS}>{p.sesiones}</td><td style={tdS}>{p.sesionesUsadas}</td>
-                  <td style={tdS}><strong style={{color:'var(--aura-lavender)'}}>{p.sesiones-p.sesionesUsadas}</strong></td>
-                  <td style={tdS}>{p.vencimiento}</td>
-                  <td style={tdS}><BadgeActivo activo={(p as any).activo??true}/></td>
-                  <Btns onEdit={()=>abrirEditar(p.id)} onDelete={()=>setConfirmDel({id:p.id,nombre:p.nombre})}/>
-                </tr>
-              ))}</tbody>
-            </table>
-          </div>
-        )}
-
-        {/* ── CONSENTIMIENTO ── */}
-        {seccion==='consentimiento' && (
-          <div className="card-aura" style={{overflow:'hidden',padding:0}}>
-            <table style={{width:'100%',borderCollapse:'collapse'}}>
-              <TH cols={['Cliente','Servicio','Fecha','Estado','Acciones']}/>
-              <tbody>{filtrar(consentimientos,'cliente').map((c,i)=>(
-                <tr key={c.id} style={{borderBottom:'1px solid #f0edf5',background:i%2===0?'white':'#faf9ff'}}>
-                  <td style={tdB}>{c.cliente}</td><td style={tdS}>{c.servicio}</td><td style={tdS}>{c.fecha}</td>
-                  <td style={tdS}>
-                    <span style={{background:c.estado==='Firmado'?'#f0fdf4':c.estado==='Rechazado'?'#fef2f2':'#fffbeb',
-                      color:c.estado==='Firmado'?'#22c55e':c.estado==='Rechazado'?'#ef4444':'#f59e0b',
-                      padding:'3px 10px',borderRadius:'20px',fontSize:'0.75rem',fontWeight:'600'}}>{c.estado}</span>
-                  </td>
-                  <Btns onEdit={()=>abrirEditar(c.id)} onDelete={()=>setConfirmDel({id:c.id,nombre:c.cliente})}/>
-                </tr>
-              ))}</tbody>
-            </table>
+        {/* ── PAQUETES Y CONSENTIMIENTO — próximamente ── */}
+        {(seccion==='paquetes' || seccion==='consentimiento') && (
+          <div className="card-aura" style={{padding:'60px',textAlign:'center'}}>
+            <Clock size={40} color="#ccc" style={{marginBottom:'16px'}}/>
+            <p style={{color:'var(--aura-gray)',fontWeight:'600',margin:0}}>Esta funcionalidad estará disponible próximamente.</p>
           </div>
         )}
 
