@@ -308,7 +308,7 @@ namespace AuraSpa.Api.Controllers
             var horasOcupadas = await _ctx.Citas
                 .Where(c => c.IdEmpleado == idEmpleado
                          && c.FechaHora.Date == fecha.Date
-                         && c.Estado != "Cancelada" && c.Estado != "Rechazada")
+                         && (c.Estado == "Pendiente" || c.Estado == "Confirmada"))
                 .Select(c => c.FechaHora)
                 .ToListAsync();
 

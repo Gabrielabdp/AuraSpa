@@ -170,13 +170,16 @@ const Agendamiento: React.FC = () => {
     }).catch(() => {});
   }, []);
 
-  // Consultar horas ocupadas del especialista seleccionado en la fecha elegida
+  // Consultar horas ocupadas del especialista seleccionado en la fecha elegida.
+  // Sin especialista ("Sin preferencia") no hay conflicto garantizado, así que no se deshabilita nada.
+  // Al cambiar sucursal, especialista o fecha, se limpia primero y se recalcula para el nuevo contexto.
   useEffect(() => {
-    if (!idEspecialista || !fecha) { setHorasOcupadas([]); return; }
+    setHorasOcupadas([]);
+    if (!idEspecialista || !fecha) return;
     apiClient.get(`/api/citas/disponibilidad?idEmpleado=${idEspecialista}&fecha=${fecha}`).then(res => {
       setHorasOcupadas(res.data);
     }).catch(() => setHorasOcupadas([]));
-  }, [idEspecialista, fecha]);
+  }, [idEspecialista, fecha, idSucursal]);
 
   // Si la hora ya elegida quedó ocupada o pasó el margen mínimo tras cambiar especialista/fecha, la deseleccionamos
   useEffect(() => {
