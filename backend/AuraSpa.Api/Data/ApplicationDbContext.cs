@@ -38,8 +38,8 @@ namespace AuraSpa.Api.Data
         public DbSet<MovimientoInventario> MovimientosInventario { get; set; }
         // Notificaciones
         public DbSet<Notificacion>        Notificaciones        { get; set; }
+        public DbSet<CuentaPorCobrar>     CuentasPorCobrar     { get; set; }
         public DbSet<ItemCatalogoSucursal> ItemsCatalogoSucursal { get; set; }
-        public DbSet<CuentaPorCobrar>      CuentasPorCobrar      { get; set; }
 
         protected override void OnModelCreating(ModelBuilder modelBuilder)
         {

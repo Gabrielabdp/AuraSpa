@@ -136,7 +136,7 @@ namespace AuraSpa.Api.Controllers
 
         // GET /api/citas/todas  (solo Admin/Especialista)
         [HttpGet("todas")]
-        [Authorize(Roles = "Admin,Cajero,Especialista")]
+        [Authorize(Roles = "Admin,Especialista")]
         public async Task<IActionResult> GetTodas([FromQuery] string? estado, [FromQuery] DateTime? fecha)
         {
             var q = _ctx.Citas
@@ -153,7 +153,7 @@ namespace AuraSpa.Api.Controllers
 
         // PUT /api/citas/{id}/estado  (solo Admin)
         [HttpPut("{id}/estado")]
-        [Authorize(Roles = "Admin,Cajero,Especialista")]
+        [Authorize(Roles = "Admin,Especialista")]
         public async Task<IActionResult> CambiarEstado(long id, [FromBody] string nuevoEstado)
         {
             var cita = await _ctx.Citas.FindAsync(id);

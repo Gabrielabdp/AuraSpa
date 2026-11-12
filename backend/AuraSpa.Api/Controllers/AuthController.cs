@@ -4,7 +4,6 @@ using System.Text;
 using AuraSpa.Api.Data;
 using AuraSpa.Api.DTOs;
 using AuraSpa.Api.Models;
-using Microsoft.AspNetCore.Authorization;
 using Microsoft.AspNetCore.Mvc;
 using Microsoft.EntityFrameworkCore;
 using Microsoft.IdentityModel.Tokens;
@@ -43,22 +42,25 @@ namespace AuraSpa.Api.Controllers
                 return Unauthorized("Credenciales inválidas.");
             }
 
+            // primerLogin = true si nunca había entrado antes
+            bool primerLogin = usuario.UltimoAcceso == null;
+
             usuario.IntentosFallidos = 0;
-            usuario.BloqueadoHasta  = null;
-            usuario.UltimoAcceso    = DateTime.Now;
+            usuario.BloqueadoHasta   = null;
+            usuario.UltimoAcceso     = DateTime.Now;
             await _ctx.SaveChangesAsync();
 
             return Ok(new
             {
-                token   = GenerateJwt(usuario),
-                usuario = new
+                token      = GenerateJwt(usuario),
+                primerLogin,
+                usuario    = new
                 {
                     id       = usuario.IdUsuario,
                     nombre   = usuario.Nombre,
                     apellido = usuario.Apellido,
                     email    = usuario.Email,
                     perfil   = usuario.Perfil?.Nombre ?? "Cliente",
-                    // El frontend usará 'perfil' en vez de 'rol'
                     rol      = usuario.Perfil?.Nombre ?? "Cliente"
                 }
             });
@@ -77,19 +79,10 @@ namespace AuraSpa.Api.Controllers
             var tipoCed = await _ctx.TiposDocumento.FirstOrDefaultAsync(t => t.Codigo == "CED");
             if (tipoCed == null) return BadRequest("Base de datos no inicializada.");
 
-            var numeroDoc = dto.NumeroDocumento ?? $"SN-{Guid.NewGuid().ToString("N").Substring(0, 12).ToUpper()}";
-
-            if (!string.IsNullOrEmpty(dto.NumeroDocumento))
-            {
-                bool cedulaExiste = await _ctx.Clientes.AnyAsync(c => c.NumeroDocumento == numeroDoc);
-                if (cedulaExiste)
-                    return BadRequest("Esta cédula ya está registrada en el sistema.");
-            }
-
             var cliente = new Cliente
             {
                 IdTipoDoc       = tipoCed.IdTipoDoc,
-                NumeroDocumento = numeroDoc,
+                NumeroDocumento = dto.NumeroDocumento ?? "000-0000000-0",
                 Nombres         = dto.Nombre,
                 Apellidos       = dto.Apellido,
                 Email           = dto.Email,
@@ -103,35 +96,15 @@ namespace AuraSpa.Api.Controllers
                 Email          = dto.Email,
                 ContrasenaHash = BCrypt.Net.BCrypt.HashPassword(dto.Password),
                 Nombre         = dto.Nombre,
-                NombreUsuario  = dto.Email,
                 Apellido       = dto.Apellido,
                 Telefono       = dto.Telefono,
                 IdPerfil       = perfil.IdPerfil,
                 IdCliente      = cliente.IdCliente
+                // UltimoAcceso queda null → primerLogin = true en primer login
             });
             await _ctx.SaveChangesAsync();
 
             return Ok(new { message = "Usuario registrado exitosamente." });
-        }
-
-        // PUT /api/auth/perfil — editar datos propios
-        [HttpPut("perfil")]
-        [Authorize]
-        public async Task<IActionResult> ActualizarPerfil([FromBody] ActualizarPerfilDto dto)
-        {
-            var idUsuario = long.Parse(User.FindFirstValue(ClaimTypes.NameIdentifier)!);
-            var usuario   = await _ctx.Usuarios.Include(u => u.Cliente).FirstOrDefaultAsync(u => u.IdUsuario == idUsuario);
-            if (usuario == null) return NotFound();
-            usuario.Nombre   = dto.Nombre;
-            usuario.Apellido = dto.Apellido;
-            usuario.Telefono = dto.Telefono;
-            if (usuario.Cliente != null) {
-                usuario.Cliente.Nombres  = dto.Nombre;
-                usuario.Cliente.Apellidos = dto.Apellido;
-                usuario.Cliente.Telefono  = dto.Telefono;
-            }
-            await _ctx.SaveChangesAsync();
-            return Ok(new { message = "Datos actualizados." });
         }
 
         private string GenerateJwt(Usuario usuario)

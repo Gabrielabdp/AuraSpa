@@ -58,10 +58,3 @@ namespace AuraSpa.Api.DTOs
         public decimal DescuentoLinea  { get; set; } = 0;
     }
 }
-
-    public class ActualizarPerfilDto
-    {
-        public string Nombre   { get; set; } = string.Empty;
-        public string Apellido { get; set; } = string.Empty;
-        public string? Telefono { get; set; }
-    }
